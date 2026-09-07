@@ -1,0 +1,35 @@
+[package]
+name = "daemon"
+version = "0.1.0"
+edition = "2021"
+default-run = "typomorph"
+
+[[bin]]
+name = "typomorph"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+core-engine = { path = "../core-engine" }
+licensing = { path = "../licensing" }
+platform-linux = { path = "../platform-linux" }
+thiserror = "1"
+
+[package.metadata.deb]
+name = "typomorph"
+maintainer = "TypoMorph Team <support@typomorph.com>"
+copyright = "2026 TypoMorph"
+license-file = ["../../LICENSE", "4"]
+extended-description = "High-performance privacy-first layout switcher with developer mode and sub-millisecond classification."
+section = "utils"
+priority = "optional"
+maintainer-scripts = "debian"
+assets = [
+	["../../target/release/typomorph", "usr/bin/typomorph", "755"],
+	[
+		"systemd/typomorph.service",
+		"usr/lib/systemd/user/typomorph.service",
+		"644",
+	],
+	["udev/99-typomorph.rules", "lib/udev/rules.d/99-typomorph.rules", "644"],
+]

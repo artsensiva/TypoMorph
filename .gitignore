@@ -1,0 +1,13 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# Editors
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Local release archives
+landing/downloads/

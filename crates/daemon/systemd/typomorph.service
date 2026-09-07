@@ -1,0 +1,13 @@
+[Unit]
+Description=TypoMorph multilingual input daemon
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/typomorph run
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
