@@ -1,4 +1,4 @@
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 
 use evdev::{AttributeSet, Device, InputEventKind, Key};
@@ -13,6 +13,8 @@ pub enum PlatformError {
         path: PathBuf,
         source: std::io::Error,
     },
+    #[error("no physical keyboard input device was found under /dev/input")]
+    NoKeyboard,
     #[error("failed to open uinput device: {0}")]
     OpenUinput(std::io::Error),
     #[error("failed to create virtual keyboard: {0}")]
@@ -49,6 +51,10 @@ impl EvdevKeyboard {
         &self.path
     }
 
+    pub fn name(&self) -> Option<&str> {
+        self.device.name()
+    }
+
     pub fn next_events(&mut self) -> Result<Vec<RawKeyEvent>, std::io::Error> {
         let mut events = Vec::new();
         for event in self.device.fetch_events()? {
@@ -62,6 +68,49 @@ impl EvdevKeyboard {
         }
         Ok(events)
     }
+}
+
+pub fn open_first_keyboard() -> Result<EvdevKeyboard, PlatformError> {
+    let mut paths: Vec<PathBuf> = fs::read_dir("/dev/input")
+        .map_err(|source| PlatformError::OpenInput {
+            path: PathBuf::from("/dev/input"),
+            source,
+        })?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("event"))
+        })
+        .collect();
+    paths.sort();
+
+    for path in paths {
+        let Ok(device) = Device::open(&path) else {
+            continue;
+        };
+        let name = device.name().unwrap_or("");
+        if name
+            .to_ascii_lowercase()
+            .contains("typomorph-virtual-keyboard")
+        {
+            continue;
+        }
+        let Some(keys) = device.supported_keys() else {
+            continue;
+        };
+        let has_keyboard_keys = [Key::KEY_A, Key::KEY_Z, Key::KEY_ENTER, Key::KEY_SPACE]
+            .into_iter()
+            .all(|key| keys.contains(key));
+        if !has_keyboard_keys {
+            continue;
+        }
+
+        return Ok(EvdevKeyboard { device, path });
+    }
+
+    Err(PlatformError::NoKeyboard)
 }
 
 pub struct UinputKeyboard {

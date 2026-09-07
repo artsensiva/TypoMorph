@@ -5,7 +5,9 @@ use std::process::Command;
 use clap::{Args, Parser, Subcommand};
 use core_engine::{Language, LanguageClassifier, RingBuffer, RING_BUFFER_CAPACITY};
 use licensing::{FeatureAccess, LemonSqueezyClient, LicenseError, LicenseStore};
-use platform_linux::{EvdevKeyboard, GnomeShellSwitcher, LayoutSwitcher, UinputKeyboard};
+use platform_linux::{
+    open_first_keyboard, EvdevKeyboard, GnomeShellSwitcher, LayoutSwitcher, UinputKeyboard,
+};
 use thiserror::Error;
 
 #[derive(Debug, Parser)]
@@ -40,8 +42,11 @@ struct TestInputArgs {
 
 #[derive(Debug, Args)]
 struct RunArgs {
-    #[arg(long, default_value = "/dev/input/event0")]
-    input: PathBuf,
+    #[arg(
+        long,
+        help = "Use a specific evdev device instead of automatic keyboard discovery"
+    )]
+    input: Option<PathBuf>,
     #[arg(long, default_value = "us")]
     layout: String,
     #[arg(long, help = "Classify and report without opening uinput or D-Bus")]
@@ -167,7 +172,16 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
     let store = LicenseStore::new(LicenseStore::default_path()?);
     let status = store.load()?;
     let access = FeatureAccess::from_status(status.as_ref());
-    let mut keyboard = EvdevKeyboard::open(&args.input)?;
+    let keyboard_result = match args.input {
+        Some(path) => EvdevKeyboard::open(path),
+        None => open_first_keyboard(),
+    }?;
+    eprintln!(
+        "Selected input device: {} ({})",
+        keyboard_result.name().unwrap_or("unnamed keyboard"),
+        keyboard_result.path().display()
+    );
+    let mut keyboard = keyboard_result;
     let mut buffer = RingBuffer::<RING_BUFFER_CAPACITY>::new();
     let classifier = LanguageClassifier::new();
     let mut current_layout = args.layout;
