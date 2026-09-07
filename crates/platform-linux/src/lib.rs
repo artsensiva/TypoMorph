@@ -2,6 +2,8 @@ use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
+use std::thread::sleep;
+use std::time::Duration;
 
 use evdev::{AttributeSet, Device, InputEventKind, Key};
 use thiserror::Error;
@@ -209,6 +211,7 @@ impl UinputKeyboard {
                 Key::KEY_BACKSPACE.code(),
                 1,
             )])?;
+            sleep(Duration::from_millis(3));
             self.device.emit(&[evdev::InputEvent::new(
                 evdev::EventType::KEY,
                 Key::KEY_BACKSPACE.code(),

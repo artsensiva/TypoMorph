@@ -1,5 +1,7 @@
 use std::io::{self, BufRead};
 use std::process::Command;
+use std::thread::sleep;
+use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
 use core_engine::{Language, LanguageClassifier, RingBuffer, RING_BUFFER_CAPACITY};
@@ -176,6 +178,7 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
         devices.join(", ")
     );
     let mut buffer = RingBuffer::<RING_BUFFER_CAPACITY>::new();
+    let mut scan_codes = Vec::new();
     let classifier = LanguageClassifier::new();
     let mut current_layout = args.layout;
     let mut emitter = if args.dry_run {
@@ -214,44 +217,59 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
             continue;
         };
         eprintln!("Key pressed: {} / {:?}", event.keycode, character);
-        buffer.push(character);
         if character.is_whitespace() {
             eprintln!(
                 "Detected word boundary, analyzing buffer: {:?}",
                 buffer.as_string()
             );
-        }
+            if buffer.len() < 3 {
+                buffer = RingBuffer::new();
+                scan_codes.clear();
+                continue;
+            }
 
-        let decision = evaluate_layout_candidates(
-            &buffer.as_string(),
-            &current_layout,
-            &classifier,
-            access.multi_language_profiles,
-            0.60,
-        );
-        if !decision.switch {
+            let decision = evaluate_layout_candidates(
+                &buffer.as_string(),
+                &current_layout,
+                &classifier,
+                access.multi_language_profiles,
+                0.60,
+            );
+            if !decision.switch {
+                buffer = RingBuffer::new();
+                scan_codes.clear();
+                continue;
+            }
+
+            let target_layout = decision.target_layout.expect("switch target exists");
+            if access.developer_mode && window_filter.should_bypass() {
+                buffer = RingBuffer::new();
+                scan_codes.clear();
+                continue;
+            }
+            eprintln!(
+                "Triggering layout swap: {} -> {}, backspacing {} chars",
+                current_layout,
+                target_layout,
+                buffer.len()
+            );
+
+            if let Some(switcher) = switcher.as_ref() {
+                switcher.switch_to(target_layout)?;
+                sleep(Duration::from_millis(15));
+            }
+            if let Some(emitter) = emitter.as_mut() {
+                let replacement = replacement_keycodes(&decision.corrected, target_layout);
+                emitter.replace_text(scan_codes.len(), &replacement)?;
+            }
+            current_layout = target_layout.to_string();
+            buffer = RingBuffer::new();
+            scan_codes.clear();
             continue;
         }
-        let target_layout = decision.target_layout.expect("switch target exists");
-        if access.developer_mode && window_filter.should_bypass() {
-            continue;
-        }
-        eprintln!(
-            "Triggering layout swap: {} -> {}, backspacing {} chars",
-            current_layout,
-            target_layout,
-            buffer.len()
-        );
 
-        if let Some(switcher) = switcher.as_ref() {
-            switcher.switch_to(target_layout)?;
-        }
-        if let Some(emitter) = emitter.as_mut() {
-            let replacement = replacement_keycodes(&decision.corrected, target_layout);
-            emitter.replace_text(buffer.len(), &replacement)?;
-        }
-        current_layout = target_layout.to_string();
-        buffer = RingBuffer::new();
+        buffer.push(character);
+        scan_codes.push(event.keycode);
     }
 }
 
