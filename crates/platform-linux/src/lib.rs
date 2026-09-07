@@ -1,5 +1,7 @@
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, Receiver};
+use std::thread;
 
 use evdev::{AttributeSet, Device, InputEventKind, Key};
 use thiserror::Error;
@@ -37,6 +39,68 @@ pub struct EvdevKeyboard {
     path: PathBuf,
 }
 
+pub struct MultiEvdevKeyboard {
+    devices: Vec<(String, PathBuf)>,
+    events: Receiver<RawKeyEvent>,
+}
+
+impl MultiEvdevKeyboard {
+    pub fn open_all() -> Result<Self, PlatformError> {
+        let mut keyboards = Vec::new();
+        for path in keyboard_paths()? {
+            let device = Device::open(&path).map_err(|source| PlatformError::OpenInput {
+                path: path.clone(),
+                source,
+            })?;
+            let name = device.name().unwrap_or("unnamed keyboard").to_string();
+            keyboards.push((name, path, device));
+        }
+
+        if keyboards.is_empty() {
+            return Err(PlatformError::NoKeyboard);
+        }
+
+        let devices = keyboards
+            .iter()
+            .map(|(name, path, _)| (name.clone(), path.clone()))
+            .collect();
+        let (sender, events) = mpsc::channel();
+
+        for (_, _, mut device) in keyboards {
+            let sender = sender.clone();
+            thread::spawn(move || loop {
+                let Ok(batch) = device.fetch_events() else {
+                    break;
+                };
+                for event in batch {
+                    if let InputEventKind::Key(key) = event.kind() {
+                        if sender
+                            .send(RawKeyEvent {
+                                keycode: key.code(),
+                                pressed: event.value() == 1,
+                                repeat: event.value() == 2,
+                            })
+                            .is_err()
+                        {
+                            return;
+                        }
+                    }
+                }
+            });
+        }
+
+        Ok(Self { devices, events })
+    }
+
+    pub fn devices(&self) -> &[(String, PathBuf)] {
+        &self.devices
+    }
+
+    pub fn recv(&self) -> Result<RawKeyEvent, mpsc::RecvError> {
+        self.events.recv()
+    }
+}
+
 impl EvdevKeyboard {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PlatformError> {
         let path = path.as_ref().to_path_buf();
@@ -71,6 +135,14 @@ impl EvdevKeyboard {
 }
 
 pub fn open_first_keyboard() -> Result<EvdevKeyboard, PlatformError> {
+    let path = keyboard_paths()?
+        .into_iter()
+        .next()
+        .ok_or(PlatformError::NoKeyboard)?;
+    EvdevKeyboard::open(path)
+}
+
+fn keyboard_paths() -> Result<Vec<PathBuf>, PlatformError> {
     let mut paths: Vec<PathBuf> = fs::read_dir("/dev/input")
         .map_err(|source| PlatformError::OpenInput {
             path: PathBuf::from("/dev/input"),
@@ -86,31 +158,26 @@ pub fn open_first_keyboard() -> Result<EvdevKeyboard, PlatformError> {
         .collect();
     paths.sort();
 
-    for path in paths {
+    paths.retain(|path| {
         let Ok(device) = Device::open(&path) else {
-            continue;
+            return false;
         };
         let name = device.name().unwrap_or("");
         if name
             .to_ascii_lowercase()
             .contains("typomorph-virtual-keyboard")
         {
-            continue;
+            return false;
         }
         let Some(keys) = device.supported_keys() else {
-            continue;
+            return false;
         };
-        let has_keyboard_keys = [Key::KEY_A, Key::KEY_Z, Key::KEY_ENTER, Key::KEY_SPACE]
+        [Key::KEY_A, Key::KEY_Z, Key::KEY_ENTER, Key::KEY_SPACE]
             .into_iter()
-            .all(|key| keys.contains(key));
-        if !has_keyboard_keys {
-            continue;
-        }
+            .all(|key| keys.contains(key))
+    });
 
-        return Ok(EvdevKeyboard { device, path });
-    }
-
-    Err(PlatformError::NoKeyboard)
+    Ok(paths)
 }
 
 pub struct UinputKeyboard {
