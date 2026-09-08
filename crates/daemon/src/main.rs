@@ -1,3 +1,6 @@
+mod tray;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::io::{self, BufRead};
 use std::process::Command;
 use std::thread::sleep;
@@ -192,6 +195,9 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
         Some(GnomeShellSwitcher::connect()?)
     };
     let window_filter = ActiveWindowFilter::default();
+    let is_pro = status.is_some();
+    let paused = Arc::new(AtomicBool::new(false));
+    tray::spawn_tray(is_pro, Arc::clone(&paused));
 
     eprintln!(
         "running in {} tier; developer mode {}",
@@ -204,6 +210,10 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
     );
 
     loop {
+        if paused.load(Ordering::Relaxed) {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            continue;
+        }
         let event = keyboard.recv().map_err(|_| {
             std::io::Error::new(
                 std::io::ErrorKind::UnexpectedEof,

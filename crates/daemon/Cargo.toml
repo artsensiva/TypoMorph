@@ -9,6 +9,7 @@ name = "typomorph"
 path = "src/main.rs"
 
 [dependencies]
+ksni = "0.2"
 clap = { version = "4", features = ["derive"] }
 core-engine = { path = "../core-engine" }
 licensing = { path = "../licensing" }
