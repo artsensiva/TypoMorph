@@ -10,14 +10,17 @@ target/
 *.log
 
 # Local release archives
-landing/downloads/
-landing/dist-manual/
+landing/release/
+release-artifacts/
 *.tar.gz
 *.deb
 extensions/dist/
 
 # Node (if any extension tooling is added later)
 node_modules/
+
+# Locally-installed helper binaries (e.g. cosign), not part of the repo
+.tools/
 
 # Secrets and credentials
 .env

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# TODO: broken after landing/ restructure (Sept 2026) — find -maxdepth 2 doesn't
+# reach downloads/ subdirectories, and cp -r logic assumes flat landing/ layout.
+# Needs rework before use.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
