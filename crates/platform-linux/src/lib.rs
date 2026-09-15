@@ -1,7 +1,9 @@
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
+use std::sync::Arc;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
@@ -45,12 +47,41 @@ pub struct EvdevKeyboard {
 pub struct MultiEvdevKeyboard {
     devices: Vec<(String, PathBuf)>,
     events: Receiver<RawKeyEvent>,
+    suppressed: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeliveryOutcome {
+    Sent,
+    Suppressed,
+    ChannelClosed,
+}
+
+/// Pulled out of the reader thread's loop body so the suppression logic
+/// itself is unit-testable without a real evdev device: dropped regardless
+/// of which device claims to have produced it, for as long as an emission
+/// is in flight (see `MultiEvdevKeyboard::suppress_delivery`) — the second,
+/// independent layer of defense against reading back the daemon's own
+/// synthetic keystrokes.
+fn deliver_event(
+    sender: &mpsc::Sender<RawKeyEvent>,
+    suppressed: &AtomicBool,
+    event: RawKeyEvent,
+) -> DeliveryOutcome {
+    if suppressed.load(Ordering::SeqCst) {
+        return DeliveryOutcome::Suppressed;
+    }
+    match sender.send(event) {
+        Ok(()) => DeliveryOutcome::Sent,
+        Err(_) => DeliveryOutcome::ChannelClosed,
+    }
 }
 
 fn spawn_keyboard_listener(
     path: PathBuf,
     sender: mpsc::Sender<RawKeyEvent>,
     active_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<PathBuf>>>,
+    suppressed: Arc<AtomicBool>,
 ) -> Option<String> {
     let Ok(mut device) = Device::open(&path) else {
         return None;
@@ -106,7 +137,8 @@ fn spawn_keyboard_listener(
                         pressed: event.value() == 1,
                         repeat: event.value() == 2,
                     };
-                    if sender.send(raw_ev).is_err() {
+                    if deliver_event(&sender, &suppressed, raw_ev) == DeliveryOutcome::ChannelClosed
+                    {
                         return;
                     }
                 }
@@ -122,13 +154,17 @@ impl MultiEvdevKeyboard {
         let (sender, events) = mpsc::channel();
         let active_paths =
             std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashSet::new()));
+        let suppressed = Arc::new(AtomicBool::new(false));
         let mut devices = Vec::new();
 
         let initial_paths = keyboard_paths().unwrap_or_default();
         for path in initial_paths {
-            if let Some(name) =
-                spawn_keyboard_listener(path.clone(), sender.clone(), active_paths.clone())
-            {
+            if let Some(name) = spawn_keyboard_listener(
+                path.clone(),
+                sender.clone(),
+                active_paths.clone(),
+                suppressed.clone(),
+            ) {
                 devices.push((name, path));
             }
         }
@@ -136,16 +172,39 @@ impl MultiEvdevKeyboard {
         // Фоновый поток для авто-подключения любых новых клавиатур (BT / USB / Dock)
         let watcher_sender = sender.clone();
         let watcher_set = active_paths.clone();
+        let watcher_suppressed = suppressed.clone();
         thread::spawn(move || loop {
             thread::sleep(Duration::from_secs(2));
             if let Ok(paths) = keyboard_paths() {
                 for path in paths {
-                    spawn_keyboard_listener(path, watcher_sender.clone(), watcher_set.clone());
+                    spawn_keyboard_listener(
+                        path,
+                        watcher_sender.clone(),
+                        watcher_set.clone(),
+                        watcher_suppressed.clone(),
+                    );
                 }
             }
         });
 
-        Ok(Self { devices, events })
+        Ok(Self {
+            devices,
+            events,
+            suppressed,
+        })
+    }
+
+    /// Suppress delivery of further events until `resume_delivery` is called.
+    /// Call this immediately before emitting synthetic keystrokes through
+    /// `UinputKeyboard`, so anything arriving during that window — an echo of
+    /// the daemon's own emission, or a coincidental real keystroke — never
+    /// reaches `recv()`.
+    pub fn suppress_delivery(&self) {
+        self.suppressed.store(true, Ordering::SeqCst);
+    }
+
+    pub fn resume_delivery(&self) {
+        self.suppressed.store(false, Ordering::SeqCst);
     }
 
     pub fn devices(&self) -> &[(String, PathBuf)] {
@@ -439,6 +498,60 @@ mod tests {
                 repeat: true
             }
             .pressed
+        );
+    }
+
+    fn sample_event() -> RawKeyEvent {
+        RawKeyEvent {
+            keycode: 30,
+            pressed: true,
+            repeat: false,
+        }
+    }
+
+    #[test]
+    fn events_are_dropped_while_suppressed_and_flow_again_once_resumed() {
+        let (sender, receiver) = mpsc::channel();
+        let suppressed = AtomicBool::new(false);
+
+        assert_eq!(
+            deliver_event(&sender, &suppressed, sample_event()),
+            DeliveryOutcome::Sent
+        );
+        assert_eq!(receiver.try_recv(), Ok(sample_event()));
+
+        // This is the exact window around switch_to()+replace_text(): while
+        // suppressed, nothing reaches the channel, regardless of how many
+        // events arrive — this is what stops an echo of our own synthetic
+        // keystrokes (or a coincidental real one) from reaching the next
+        // recv() and corrupting the next word's buffer.
+        suppressed.store(true, Ordering::SeqCst);
+        assert_eq!(
+            deliver_event(&sender, &suppressed, sample_event()),
+            DeliveryOutcome::Suppressed
+        );
+        assert_eq!(
+            deliver_event(&sender, &suppressed, sample_event()),
+            DeliveryOutcome::Suppressed
+        );
+        assert!(receiver.try_recv().is_err(), "channel must stay empty");
+
+        suppressed.store(false, Ordering::SeqCst);
+        assert_eq!(
+            deliver_event(&sender, &suppressed, sample_event()),
+            DeliveryOutcome::Sent
+        );
+        assert_eq!(receiver.try_recv(), Ok(sample_event()));
+    }
+
+    #[test]
+    fn closed_channel_is_reported_even_while_not_suppressed() {
+        let (sender, receiver) = mpsc::channel();
+        drop(receiver);
+        let suppressed = AtomicBool::new(false);
+        assert_eq!(
+            deliver_event(&sender, &suppressed, sample_event()),
+            DeliveryOutcome::ChannelClosed
         );
     }
 

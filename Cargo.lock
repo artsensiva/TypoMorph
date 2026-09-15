@@ -401,7 +401,7 @@ dependencies = [
 
 [[package]]
 name = "daemon"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "clap 4.6.6",
  "core-engine",

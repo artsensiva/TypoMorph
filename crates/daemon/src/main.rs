@@ -332,6 +332,13 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
             continue;
         };
         eprintln!("Key pressed: {} / {:?}", event.keycode, character);
+        // TODO: buffer is only ever reset on a word boundary (whitespace/punctuation),
+        // never on a pause. A stray keystroke typed seconds earlier, with no boundary
+        // character after it, stays in the buffer and attaches to the next word (e.g.
+        // an isolated 's' typed 14s before "привет" becomes "спривет"). Consider also
+        // resetting on inactivity (e.g. 3-5s since the last keystroke) to avoid this
+        // class of stray-leading-character bug. Separate from the synthetic-echo fix
+        // in this same commit — not yet implemented.
         if character.is_whitespace() {
             eprintln!(
                 "Detected word boundary, analyzing buffer: {:?}",
@@ -372,14 +379,25 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
                 buffer.len()
             );
 
-            if let Some(switcher) = switcher.as_ref() {
-                switcher.switch_to(target_layout)?;
-                sleep(Duration::from_millis(15));
-            }
-            if let Some(emitter) = emitter.as_mut() {
-                let replacement = replacement_keycodes(&decision.corrected, target_layout);
-                emitter.replace_text(scan_codes.len(), &replacement)?;
-            }
+            // Suppressed for the full duration of the swap + emission so that
+            // nothing arriving in this window — an echo of our own synthetic
+            // keystrokes, or a coincidental real one — reaches the next
+            // recv(). Always resumed via `emit_result`, even on error: an
+            // early `?` here would leave delivery suppressed forever.
+            keyboard.suppress_delivery();
+            let emit_result: Result<(), DaemonError> = (|| {
+                if let Some(switcher) = switcher.as_ref() {
+                    switcher.switch_to(target_layout)?;
+                    sleep(Duration::from_millis(15));
+                }
+                if let Some(emitter) = emitter.as_mut() {
+                    let replacement = replacement_keycodes(&decision.corrected, target_layout);
+                    emitter.replace_text(scan_codes.len(), &replacement)?;
+                }
+                Ok(())
+            })();
+            keyboard.resume_delivery();
+            emit_result?;
             current_layout = target_layout.to_string();
             buffer = RingBuffer::new();
             scan_codes.clear();
