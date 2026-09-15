@@ -11,6 +11,7 @@ target/
 
 # Local release archives
 landing/downloads/
+landing/dist-manual/
 *.tar.gz
 *.deb
 extensions/dist/
