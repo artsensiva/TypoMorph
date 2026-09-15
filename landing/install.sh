@@ -39,16 +39,26 @@ if [[ ! -r /dev/uinput ]]; then
   echo "Warning: /dev/uinput is not readable yet. Install the package to apply udev rules, then log in again if needed." >&2
 fi
 
-TAG="${TYPO_TAG:-}"
-if [[ -z "$TAG" ]]; then
+# Fetch the full release JSON (not just the tag) so the .deb filename comes
+# from the actual published asset instead of being guessed from the tag —
+# the package version (cargo-deb) and the git tag are not guaranteed to
+# match, and guessing here is exactly what caused a 404 for v0.2.0.
+if [[ -n "${TYPO_TAG:-}" ]]; then
+  RELEASE_JSON="$(curl --fail --silent --show-error "${GITHUB_API}/releases/tags/${TYPO_TAG}")" || fail_to_source_build
+else
   echo "Looking up latest release..."
-  TAG="$(curl --fail --silent --show-error "${GITHUB_API}/releases/latest" \
-    | grep -o '"tag_name" *: *"[^"]*"' | head -1 | cut -d'"' -f4)" || fail_to_source_build
+  RELEASE_JSON="$(curl --fail --silent --show-error "${GITHUB_API}/releases/latest")" || fail_to_source_build
 fi
+
+TAG="$(printf '%s\n' "$RELEASE_JSON" | grep -o '"tag_name" *: *"[^"]*"' | head -1 | cut -d'"' -f4)"
 [[ -n "$TAG" ]] || fail_to_source_build
 
-VERSION="${TAG#v}"
-DEB_NAME="typomorph_${VERSION}_amd64.deb"
+DEB_NAME="$(printf '%s\n' "$RELEASE_JSON" | awk -F'"' '
+  /"name":/ { name = $4 }
+  /"browser_download_url":/ && name ~ /\.deb$/ { print name; exit }
+')"
+[[ -n "$DEB_NAME" ]] || fail_to_source_build
+
 DEB_PATH="${TMP_DIR}/${DEB_NAME}"
 SUMS_PATH="${TMP_DIR}/SHA256SUMS"
 
