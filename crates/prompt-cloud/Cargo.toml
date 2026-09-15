@@ -1,0 +1,10 @@
+[package]
+name = "prompt-cloud"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core-engine = { path = "../core-engine" }
+serde_json = "1"
+thiserror = "1"
+ureq = { version = "2.10", default-features = false }

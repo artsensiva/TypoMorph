@@ -8,7 +8,7 @@ if ! command -v cargo-deb >/dev/null 2>&1; then
     cargo install cargo-deb
 fi
 
-cargo build --release -p daemon
+cargo build --release -p daemon -p native-host
 cargo deb -p daemon
 
 shopt -s nullglob

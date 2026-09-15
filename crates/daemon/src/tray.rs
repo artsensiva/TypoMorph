@@ -23,7 +23,8 @@ impl Tray for TypoMorphTray {
 
         for y in 0..size {
             for x in 0..size {
-                let inside_t = (y >= 4 && y <= 6 && x >= 4 && x <= 17) || (y >= 7 && y <= 17 && x >= 9 && x <= 12);
+                let inside_t = ((4..=6).contains(&y) && (4..=17).contains(&x))
+                    || ((7..=17).contains(&y) && (9..=12).contains(&x));
                 if inside_t {
                     argb.extend_from_slice(&[255, 255, 255, 255]); // Белый текст
                 } else if is_paused {
@@ -43,8 +44,16 @@ impl Tray for TypoMorphTray {
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
         let is_paused = self.paused.load(Ordering::Relaxed);
-        let tier_label = if self.is_pro { "TypoMorph: Pro Tier" } else { "TypoMorph: Free Tier" };
-        let state_label = if is_paused { "Status: Paused" } else { "Status: Active" };
+        let tier_label = if self.is_pro {
+            "TypoMorph: Pro Tier"
+        } else {
+            "TypoMorph: Free Tier"
+        };
+        let state_label = if is_paused {
+            "Status: Paused"
+        } else {
+            "Status: Active"
+        };
         let toggle_label = if is_paused { "Resume" } else { "Pause" };
 
         let paused_clone = Arc::clone(&self.paused);

@@ -3,7 +3,6 @@ use licensing::{validate_offline, FeatureAccess, LicenseStatus};
 #[test]
 fn invalid_or_missing_entitlement_keeps_premium_features_disabled() {
     let access = FeatureAccess::from_status(None);
-    assert!(!access.multi_language_profiles);
     assert!(!access.developer_mode);
 }
 

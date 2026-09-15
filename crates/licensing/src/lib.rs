@@ -110,7 +110,6 @@ impl LicenseStore {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeatureAccess {
-    pub multi_language_profiles: bool,
     pub developer_mode: bool,
 }
 
@@ -118,7 +117,6 @@ impl FeatureAccess {
     pub fn from_status(status: Option<&LicenseStatus>) -> Self {
         let licensed = status.is_some_and(|value| value.active);
         Self {
-            multi_language_profiles: licensed,
             developer_mode: licensed,
         }
     }
@@ -283,8 +281,8 @@ mod tests {
         let status = status_for("test-key");
         assert!(validate_offline("test-key", &status));
         assert!(!validate_offline("other-key", &status));
-        assert_eq!(FeatureAccess::from_status(None).developer_mode, false);
-        assert!(FeatureAccess::from_status(Some(&status)).multi_language_profiles);
+        assert!(!FeatureAccess::from_status(None).developer_mode);
+        assert!(FeatureAccess::from_status(Some(&status)).developer_mode);
     }
 
     #[test]

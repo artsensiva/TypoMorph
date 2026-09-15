@@ -52,13 +52,21 @@ fn spawn_keyboard_listener(
     sender: mpsc::Sender<RawKeyEvent>,
     active_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<PathBuf>>>,
 ) -> Option<String> {
-    let Ok(mut device) = Device::open(&path) else { return None; };
+    let Ok(mut device) = Device::open(&path) else {
+        return None;
+    };
     let name = device.name().unwrap_or("unnamed keyboard").to_string();
-    if name.to_ascii_lowercase().contains("typomorph-virtual-keyboard") {
+    if name
+        .to_ascii_lowercase()
+        .contains("typomorph-virtual-keyboard")
+    {
         return None;
     }
-    let Some(keys) = device.supported_keys() else { return None; };
-    if !(keys.contains(Key::KEY_A) || keys.contains(Key::KEY_SPACE) || keys.contains(Key::KEY_ENTER)) {
+    let keys = device.supported_keys()?;
+    if !(keys.contains(Key::KEY_A)
+        || keys.contains(Key::KEY_SPACE)
+        || keys.contains(Key::KEY_ENTER))
+    {
         return None;
     }
 
@@ -75,10 +83,18 @@ fn spawn_keyboard_listener(
     let set_clone = active_paths.clone();
 
     thread::spawn(move || {
-        eprintln!("[DEBUG] Dynamic reader thread started for: {:?} ({})", name_clone, p_clone.display());
+        eprintln!(
+            "[DEBUG] Dynamic reader thread started for: {:?} ({})",
+            name_clone,
+            p_clone.display()
+        );
         loop {
             let Ok(batch) = device.fetch_events() else {
-                eprintln!("[DEBUG] Device disconnected: {:?} ({})", name_clone, p_clone.display());
+                eprintln!(
+                    "[DEBUG] Device disconnected: {:?} ({})",
+                    name_clone,
+                    p_clone.display()
+                );
                 let mut set = set_clone.lock().unwrap();
                 set.remove(&p_clone);
                 break;
@@ -104,12 +120,15 @@ fn spawn_keyboard_listener(
 impl MultiEvdevKeyboard {
     pub fn open_all() -> Result<Self, PlatformError> {
         let (sender, events) = mpsc::channel();
-        let active_paths = std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashSet::new()));
+        let active_paths =
+            std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashSet::new()));
         let mut devices = Vec::new();
 
         let initial_paths = keyboard_paths().unwrap_or_default();
         for path in initial_paths {
-            if let Some(name) = spawn_keyboard_listener(path.clone(), sender.clone(), active_paths.clone()) {
+            if let Some(name) =
+                spawn_keyboard_listener(path.clone(), sender.clone(), active_paths.clone())
+            {
                 devices.push((name, path));
             }
         }
@@ -117,13 +136,11 @@ impl MultiEvdevKeyboard {
         // Фоновый поток для авто-подключения любых новых клавиатур (BT / USB / Dock)
         let watcher_sender = sender.clone();
         let watcher_set = active_paths.clone();
-        thread::spawn(move || {
-            loop {
-                thread::sleep(Duration::from_secs(2));
-                if let Ok(paths) = keyboard_paths() {
-                    for path in paths {
-                        spawn_keyboard_listener(path, watcher_sender.clone(), watcher_set.clone());
-                    }
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(2));
+            if let Ok(paths) = keyboard_paths() {
+                for path in paths {
+                    spawn_keyboard_listener(path, watcher_sender.clone(), watcher_set.clone());
                 }
             }
         });
@@ -198,7 +215,7 @@ fn keyboard_paths() -> Result<Vec<PathBuf>, PlatformError> {
     paths.sort();
 
     paths.retain(|path| {
-        let Ok(device) = Device::open(&path) else {
+        let Ok(device) = Device::open(path) else {
             return false;
         };
         let name = device.name().unwrap_or("");
@@ -228,10 +245,16 @@ impl UinputKeyboard {
         keys.insert(Key::KEY_BACKSPACE);
         keys.insert(Key::KEY_SPACE);
         // Add all letters for both US and RU layouts
-        for code in 16..=25 { keys.insert(Key::new(code)); } // Q-P
-        for code in 30..=38 { keys.insert(Key::new(code)); } // A-L
-        for code in 44..=50 { keys.insert(Key::new(code)); } // Z-M
-        // Also add some extra keys just in case
+        for code in 16..=25 {
+            keys.insert(Key::new(code));
+        } // Q-P
+        for code in 30..=38 {
+            keys.insert(Key::new(code));
+        } // A-L
+        for code in 44..=50 {
+            keys.insert(Key::new(code));
+        } // Z-M
+          // Also add some extra keys just in case
         keys.insert(Key::KEY_LEFTMETA);
         keys.insert(Key::KEY_LEFTSHIFT);
         keys.insert(Key::KEY_LEFTALT);
@@ -242,7 +265,7 @@ impl UinputKeyboard {
             .with_keys(&keys)
             .map_err(|error| PlatformError::CreateVirtualKeyboard(error.to_string()))?
             .build()
-            .map_err(|error| PlatformError::OpenUinput(error))?;
+            .map_err(PlatformError::OpenUinput)?;
         Ok(Self { device })
     }
 
@@ -335,7 +358,7 @@ impl GnomeShellSwitcher {
 impl LayoutSwitcher for GnomeShellSwitcher {
     fn switch_to(&self, layout: &str) -> Result<(), PlatformError> {
         eprintln!("Executing layout swap to: {}...", layout);
-        
+
         // GNOME 46+ Wayland safety: org.gnome.Shell.Eval is often restricted.
         // We use org.gnome.desktop.input-sources mru-sources if possible,
         // but the most reliable way via D-Bus for extensions/shell is often
@@ -343,15 +366,15 @@ impl LayoutSwitcher for GnomeShellSwitcher {
         // OR using the standard GSettings-like interface via D-Bus.
         // For Ubuntu 26.04/GNOME 46, we'll try to use the gsettings-like D-Bus call
         // to change current index or use a more modern approach.
-        
-        // Fallback/Standard: Try to use a simpler shell evaluation if allowed, 
-        // but with better error handling. 
+
+        // Fallback/Standard: Try to use a simpler shell evaluation if allowed,
+        // but with better error handling.
         // Note: In modern GNOME, Eval is disabled by default for security.
-        
+
         // A better way without Eval is to use `gsettings` or D-Bus for `org.gnome.desktop.input-sources`.
         // Since we are in a daemon, we can try to run `gsettings` command as a reliable fallback
         // or use the D-Bus interface for settings.
-        
+
         let status = Command::new("gsettings")
             .args([
                 "set",

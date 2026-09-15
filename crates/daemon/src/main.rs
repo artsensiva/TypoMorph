@@ -1,15 +1,21 @@
 mod tray;
+use std::io::{self, BufRead, Read};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::io::{self, BufRead};
-use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
-use core_engine::{Language, LanguageClassifier, RingBuffer, RING_BUFFER_CAPACITY};
+use core_engine::layout::{
+    evaluate_layout_candidates, infer_layout_from_text, keycode_to_character, replacement_keycodes,
+};
+use core_engine::prompt_detector::PromptDetector;
+use core_engine::prompt_improver::improve_rule_based;
+use core_engine::{LanguageClassifier, RingBuffer, RING_BUFFER_CAPACITY};
 use licensing::{FeatureAccess, LemonSqueezyClient, LicenseError, LicenseStore};
 use platform_linux::{GnomeShellSwitcher, LayoutSwitcher, MultiEvdevKeyboard, UinputKeyboard};
+use prompt_cloud::{Backend, PromptCloudClient};
 use thiserror::Error;
 
 #[derive(Debug, Parser)]
@@ -27,11 +33,28 @@ struct Cli {
 enum Commands {
     Run(RunArgs),
     TestInput(TestInputArgs),
+    ImprovePrompt(ImprovePromptArgs),
     License {
         #[command(subcommand)]
         command: LicenseCommand,
     },
     Status,
+}
+
+#[derive(Debug, Args)]
+struct ImprovePromptArgs {
+    #[arg(long, help = "Read the prompt text from stdin")]
+    stdin: bool,
+    #[arg(
+        long,
+        help = "Allow sending the prompt to a cloud AI backend (Anthropic API); never happens without this flag"
+    )]
+    cloud: bool,
+    #[arg(
+        long,
+        help = "Anthropic API key for the free bring-your-own-key cloud path (defaults to $TYPOMORPH_ANTHROPIC_KEY)"
+    )]
+    api_key: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -48,15 +71,6 @@ struct RunArgs {
     layout: String,
     #[arg(long, help = "Classify and report without opening uinput or D-Bus")]
     dry_run: bool,
-}
-
-#[derive(Debug)]
-struct LayoutDecision {
-    language: Language,
-    confidence: f64,
-    switch: bool,
-    target_layout: Option<&'static str>,
-    corrected: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -89,6 +103,7 @@ fn run_cli(cli: Cli) -> Result<(), DaemonError> {
     match cli.command {
         Commands::Run(args) => run_daemon(args),
         Commands::TestInput(args) => test_input(args),
+        Commands::ImprovePrompt(args) => improve_prompt(args),
         Commands::License { command } => match command {
             LicenseCommand::Activate { key, instance } => activate_license(&key, &instance),
         },
@@ -122,8 +137,7 @@ fn test_input(args: TestInputArgs) -> Result<(), DaemonError> {
         }
 
         let text = buffer.as_string();
-        let decision =
-            evaluate_layout_candidates(&text, &layout, &classifier, true, args.threshold);
+        let decision = evaluate_layout_candidates(&text, &layout, &classifier, args.threshold);
 
         println!(
             "detected={:?} confidence={:.2} switch={} target={:?} corrected={:?}",
@@ -143,6 +157,74 @@ fn test_input(args: TestInputArgs) -> Result<(), DaemonError> {
     Ok(())
 }
 
+fn improve_prompt(args: ImprovePromptArgs) -> Result<(), DaemonError> {
+    if !args.stdin {
+        eprintln!("typomorph improve-prompt currently only supports --stdin");
+        std::process::exit(2);
+    }
+
+    let mut text = String::new();
+    io::stdin().lock().read_to_string(&mut text)?;
+    let text = text.trim();
+    if text.is_empty() {
+        eprintln!("no input on stdin");
+        return Ok(());
+    }
+
+    let signal = PromptDetector::new().detect(text);
+    eprintln!(
+        "prompt-detected={} confidence={:.2} language={:?}",
+        signal.is_prompt, signal.confidence, signal.language
+    );
+
+    if !args.cloud {
+        println!("{}", improve_rule_based(text));
+        eprintln!("mode=local (free, offline, no network)");
+        return Ok(());
+    }
+
+    let client = PromptCloudClient::new();
+    let api_key = args
+        .api_key
+        .or_else(|| std::env::var("TYPOMORPH_ANTHROPIC_KEY").ok())
+        .filter(|key| !key.trim().is_empty());
+
+    if let Some(api_key) = api_key {
+        match client.improve(text, Backend::BringYourOwnKey { api_key: &api_key }, false) {
+            Ok(improved) => {
+                println!("{improved}");
+                eprintln!("mode=cloud (bring-your-own-key, free)");
+            }
+            Err(error) => {
+                eprintln!("cloud request failed ({error}); falling back to the local improver");
+                println!("{}", improve_rule_based(text));
+            }
+        }
+        return Ok(());
+    }
+
+    let store = LicenseStore::new(LicenseStore::default_path()?);
+    let is_pro = store.load()?.is_some();
+    if !is_pro {
+        eprintln!(
+            "--cloud requires either TYPOMORPH_ANTHROPIC_KEY (free, bring your own key) or an active Pro license"
+        );
+        std::process::exit(2);
+    }
+
+    match client.improve(text, Backend::Managed, is_pro) {
+        Ok(improved) => {
+            println!("{improved}");
+            eprintln!("mode=cloud (managed, pro)");
+        }
+        Err(error) => {
+            eprintln!("cloud request failed ({error}); falling back to the local improver");
+            println!("{}", improve_rule_based(text));
+        }
+    }
+    Ok(())
+}
+
 fn activate_license(key: &str, instance: &str) -> Result<(), DaemonError> {
     let client = LemonSqueezyClient::new()?;
     let status = client.activate(key, instance)?;
@@ -157,10 +239,7 @@ fn print_status() -> Result<(), DaemonError> {
     let status = store.load()?;
     let access = FeatureAccess::from_status(status.as_ref());
     println!("tier: {}", if status.is_some() { "pro" } else { "free" });
-    println!(
-        "multi-language profiles: {}",
-        access.multi_language_profiles
-    );
+    println!("layout correction: unlimited (free for all languages)");
     println!("developer mode: {}", access.developer_mode);
     Ok(())
 }
@@ -183,6 +262,7 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
     let mut buffer = RingBuffer::<RING_BUFFER_CAPACITY>::new();
     let mut scan_codes = Vec::new();
     let classifier = LanguageClassifier::new();
+    let prompt_detector = PromptDetector::new();
     let mut current_layout = args.layout;
     let mut emitter = if args.dry_run {
         None
@@ -194,7 +274,7 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
     } else {
         Some(GnomeShellSwitcher::connect()?)
     };
-    let window_filter = ActiveWindowFilter::default();
+    let window_filter = ActiveWindowFilter;
     let is_pro = status.is_some();
     let paused = Arc::new(AtomicBool::new(false));
     tray::spawn_tray(is_pro, Arc::clone(&paused));
@@ -209,6 +289,9 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
         }
     );
 
+    let mut ctrl_held = false;
+    let mut alt_held = false;
+
     loop {
         if paused.load(Ordering::Relaxed) {
             std::thread::sleep(std::time::Duration::from_millis(100));
@@ -220,6 +303,28 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
                 "all input devices closed",
             )
         })?;
+
+        match event.keycode {
+            KEYCODE_LEFT_CTRL | KEYCODE_RIGHT_CTRL => {
+                ctrl_held = event.pressed;
+                continue;
+            }
+            KEYCODE_LEFT_ALT | KEYCODE_RIGHT_ALT => {
+                alt_held = event.pressed;
+                continue;
+            }
+            KEYCODE_I if event.pressed && !event.repeat && ctrl_held && alt_held => {
+                let text = buffer.as_string();
+                if !text.is_empty() {
+                    let improved = improve_rule_based(&text);
+                    eprintln!("Prompt hotkey pressed; improved locally: {improved:?}");
+                    notify_send("TypoMorph", &format!("Improved prompt:\n{improved}"));
+                }
+                continue;
+            }
+            _ => {}
+        }
+
         if !event.pressed || event.repeat {
             continue;
         }
@@ -238,17 +343,20 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
                 continue;
             }
 
-            let decision = evaluate_layout_candidates(
-                &buffer.as_string(),
-                &current_layout,
-                &classifier,
-                access.multi_language_profiles,
-                0.60,
-            );
+            let decision =
+                evaluate_layout_candidates(&buffer.as_string(), &current_layout, &classifier, 0.60);
             if !decision.switch {
                 buffer = RingBuffer::new();
                 scan_codes.clear();
                 continue;
+            }
+
+            let prompt_signal = prompt_detector.detect(&buffer.as_string());
+            if prompt_signal.is_prompt {
+                notify_send(
+                    "TypoMorph",
+                    "This looks like an AI prompt — press Ctrl+Alt+I to improve it instead of switching layout.",
+                );
             }
 
             let target_layout = decision.target_layout.expect("switch target exists");
@@ -283,65 +391,6 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
     }
 }
 
-fn evaluate_layout_candidates(
-    text: &str,
-    current_layout: &str,
-    classifier: &LanguageClassifier,
-    multi_language_profiles: bool,
-    threshold: f64,
-) -> LayoutDecision {
-    let (original_language, original_confidence) = classifier.classify_with_confidence(text);
-    let alternate_layout = if current_layout == "ru" { "us" } else { "ru" };
-    let alternate_text = correct_text_for_layout(text, current_layout, alternate_layout);
-    let (mapped_language, whole_mapped_confidence) =
-        classifier.classify_with_confidence(&alternate_text);
-    let (recent_mapped_language, recent_mapped_confidence) = alternate_text
-        .split_whitespace()
-        .last()
-        .map(|word| classifier.classify_with_confidence(word))
-        .unwrap_or((mapped_language, whole_mapped_confidence));
-    let (mapped_language, mapped_confidence) = if recent_mapped_confidence > whole_mapped_confidence
-    {
-        (recent_mapped_language, recent_mapped_confidence)
-    } else {
-        (mapped_language, whole_mapped_confidence)
-    };
-    let mapped_target = target_layout(mapped_language, multi_language_profiles);
-    let coherent_alternate = mapped_confidence >= 0.80;
-    let beats_original = coherent_alternate || mapped_confidence > original_confidence + 0.10;
-    let switch = alternate_text != text
-        && mapped_target.is_some_and(|target| target != current_layout)
-        && mapped_confidence >= threshold
-        && beats_original;
-
-    if switch {
-        LayoutDecision {
-            language: mapped_language,
-            confidence: mapped_confidence,
-            switch: true,
-            target_layout: mapped_target,
-            corrected: alternate_text,
-        }
-    } else {
-        LayoutDecision {
-            language: original_language,
-            confidence: original_confidence,
-            switch: false,
-            target_layout: None,
-            corrected: text.to_string(),
-        }
-    }
-}
-
-fn target_layout(language: Language, multi_language_profiles: bool) -> Option<&'static str> {
-    match language {
-        Language::English => Some("us"),
-        Language::Russian => Some("ru"),
-        Language::Ukrainian if multi_language_profiles => Some("ua"),
-        _ => None,
-    }
-}
-
 #[derive(Debug, Default)]
 struct ActiveWindowFilter;
 
@@ -364,6 +413,17 @@ fn xdotool_property(property: &str) -> String {
         .unwrap_or_default()
 }
 
+// Standard Linux evdev keycodes (linux/input-event-codes.h).
+const KEYCODE_LEFT_CTRL: u16 = 29;
+const KEYCODE_LEFT_ALT: u16 = 56;
+const KEYCODE_RIGHT_CTRL: u16 = 97;
+const KEYCODE_RIGHT_ALT: u16 = 100;
+const KEYCODE_I: u16 = 23;
+
+fn notify_send(summary: &str, body: &str) {
+    let _ = Command::new("notify-send").args([summary, body]).status();
+}
+
 fn is_developer_window(value: &str) -> bool {
     let normalized = value.to_lowercase();
     ["gnome-terminal", "alacritty", "kitty", "code", "clion"]
@@ -371,163 +431,18 @@ fn is_developer_window(value: &str) -> bool {
         .any(|marker| normalized.contains(marker))
 }
 
-fn keycode_to_character(keycode: u16, layout: &str) -> Option<char> {
-    let index = match keycode {
-        16..=25 => usize::from(keycode - 16),
-        30..=38 => usize::from(keycode - 30 + 10),
-        44..=50 => usize::from(keycode - 44 + 19),
-        57 => return Some(' '),
-        _ => return None,
-    };
-    let english = "qwertyuiopasdfghjklzxcvbnm";
-    let russian = "йцукенгшщзфывапролдячсмить";
-    let characters = if layout == "ru" { russian } else { english };
-    characters.chars().nth(index)
-}
-
-fn infer_layout_from_text(text: &str) -> Option<&'static str> {
-    if text.chars().any(is_cyrillic_character) {
-        Some("ru")
-    } else if text
-        .chars()
-        .any(|character| character.is_ascii_alphabetic())
-    {
-        Some("us")
-    } else {
-        None
-    }
-}
-
-fn is_cyrillic_character(character: char) -> bool {
-    matches!(character as u32, 0x400..=0x4ff)
-}
-
-fn replacement_keycodes(text: &str, target_layout: &str) -> Vec<u16> {
-    text.chars()
-        .filter_map(|character| keycode_for_character(character, target_layout))
-        .collect()
-}
-
-fn keycode_for_character(character: char, layout: &str) -> Option<u16> {
-    let english = "qwertyuiopasdfghjklzxcvbnm";
-    let russian = "йцукенгшщзфывапролдячсмить";
-    let characters = if layout == "ru" { russian } else { english };
-    let normalized = character.to_lowercase().next()?;
-    let index = characters
-        .chars()
-        .position(|candidate| candidate == normalized)?;
-    let keycode = match index {
-        0..=9 => 16 + index,
-        10..=18 => 30 + index - 10,
-        19..=25 => 44 + index - 19,
-        _ => return None,
-    };
-    u16::try_from(keycode).ok()
-}
-
-fn correct_text_for_layout(text: &str, source_layout: &str, target_layout: &str) -> String {
-    text.chars()
-        .map(|character| {
-            keycode_for_character(character, source_layout)
-                .and_then(|keycode| keycode_to_character(keycode, target_layout))
-                .map(|mapped| {
-                    if character.is_uppercase() {
-                        mapped.to_uppercase().next().unwrap_or(mapped)
-                    } else {
-                        mapped
-                    }
-                })
-                .unwrap_or(character)
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn free_tier_only_switches_between_english_and_russian() {
-        assert_eq!(target_layout(Language::English, false), Some("us"));
-        assert_eq!(target_layout(Language::Russian, false), Some("ru"));
-        assert_eq!(target_layout(Language::Ukrainian, false), None);
-    }
+    // Layout-correction logic itself (keymaps, evaluate_layout_candidates,
+    // target_layout, Hindi non-correction) now lives in and is tested by
+    // core_engine::layout; these tests cover only what's still daemon-local.
 
     #[test]
     fn developer_window_markers_bypass_layout_switching() {
         assert!(is_developer_window("Alacritty"));
         assert!(is_developer_window("Visual Studio Code"));
         assert!(!is_developer_window("Firefox"));
-    }
-
-    #[test]
-    fn keymaps_round_trip_common_letters() {
-        for (keycode, character) in [(16, 'q'), (30, 'a'), (44, 'z'), (57, ' ')] {
-            assert_eq!(keycode_to_character(keycode, "us"), Some(character));
-        }
-        assert_eq!(keycode_for_character('й', "ru"), Some(16));
-    }
-
-    #[test]
-    fn corrected_text_translates_between_layouts() {
-        assert_eq!(correct_text_for_layout("руддщ", "ru", "us"), "hello");
-        assert_eq!(correct_text_for_layout("FHNTV", "us", "ru"), "АРТЕМ");
-        assert_eq!(correct_text_for_layout("FKKJ", "us", "ru"), "АЛЛО");
-    }
-
-    #[test]
-    fn simulation_infers_source_layout_from_script() {
-        assert_eq!(infer_layout_from_text("ghbdtn"), Some("us"));
-        assert_eq!(infer_layout_from_text("руддщ"), Some("ru"));
-        assert_eq!(infer_layout_from_text("123 !"), None);
-    }
-
-    #[test]
-    fn dual_candidate_evaluation_switches_us_gibberish_to_russian() {
-        let classifier = LanguageClassifier::new();
-        let decision = evaluate_layout_candidates("ghbdtn", "us", &classifier, false, 0.75);
-        assert!(decision.switch);
-        assert_eq!(decision.language, Language::Russian);
-        assert_eq!(decision.target_layout, Some("ru"));
-        assert_eq!(decision.corrected, "привет");
-    }
-
-    #[test]
-    fn uppercase_short_input_can_trigger_a_russian_layout_switch() {
-        let classifier = LanguageClassifier::new();
-        let decision = evaluate_layout_candidates("ALLO", "us", &classifier, false, 0.65);
-        assert!(decision.switch);
-        assert_eq!(decision.target_layout, Some("ru"));
-        assert_eq!(decision.corrected, "ФДДЩ");
-    }
-
-    #[test]
-    fn dual_candidate_evaluation_switches_russian_gibberish_to_english() {
-        let classifier = LanguageClassifier::new();
-        let decision = evaluate_layout_candidates("руддщ", "ru", &classifier, false, 0.75);
-        assert!(decision.switch);
-        assert_eq!(decision.language, Language::English);
-        assert_eq!(decision.target_layout, Some("us"));
-        assert_eq!(decision.corrected, "hello");
-    }
-
-    #[test]
-    fn dual_candidate_evaluation_handles_phrases_and_long_words() {
-        let classifier = LanguageClassifier::new();
-        for (source, expected) in [
-            ("ghbdtn vbh", "привет мир"),
-            ("ghjuhfvvbhjdfybt", "программирование"),
-        ] {
-            let decision = evaluate_layout_candidates(source, "us", &classifier, false, 0.65);
-            assert!(decision.switch, "expected switch for {source}");
-            assert_eq!(decision.corrected, expected);
-            assert_eq!(decision.target_layout, Some("ru"));
-        }
-
-        let reverse = evaluate_layout_candidates("руддщ цщкдв", "ru", &classifier, false, 0.65);
-        assert!(reverse.switch);
-        assert_eq!(reverse.language, Language::English);
-        assert_eq!(reverse.target_layout, Some("us"));
-        assert_eq!(reverse.corrected, "hello world");
     }
 }

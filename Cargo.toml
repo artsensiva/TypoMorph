@@ -3,6 +3,8 @@ members = [
 	"crates/core-engine",
 	"crates/platform-linux",
 	"crates/licensing",
+	"crates/prompt-cloud",
+	"crates/native-host",
 	"crates/daemon",
 ]
 resolver = "2"

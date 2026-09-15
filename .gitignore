@@ -11,3 +11,17 @@ target/
 
 # Local release archives
 landing/downloads/
+*.tar.gz
+*.deb
+extensions/dist/
+
+# Node (if any extension tooling is added later)
+node_modules/
+
+# Secrets and credentials
+.env
+.env.*
+*.pem
+*.key
+id_rsa
+id_ed25519

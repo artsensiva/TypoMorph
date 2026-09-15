@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Build .deb package
+        run: ./scripts/build-deb.sh
+
+      - name: Generate checksums
+        run: |
+          cd target/debian
+          sha256sum typomorph_*.deb > SHA256SUMS
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Sign checksums (keyless)
+        working-directory: target/debian
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign-blob --output-signature SHA256SUMS.sig --output-certificate SHA256SUMS.pem SHA256SUMS
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            target/debian/typomorph_*.deb \
+            target/debian/SHA256SUMS \
+            target/debian/SHA256SUMS.sig \
+            target/debian/SHA256SUMS.pem \
+            --title "${{ github.ref_name }}" \
+            --generate-notes

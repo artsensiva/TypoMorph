@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>TypoMorph</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        width: 260px;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0 0 8px;
+      }
+      .row {
+        margin-bottom: 10px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      input[type="text"],
+      input[type="password"] {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      #status {
+        font-weight: bold;
+      }
+      #status.pro {
+        color: #2a7a2a;
+      }
+      #status.free {
+        color: #555;
+      }
+      #status.error {
+        color: #a33;
+      }
+      a {
+        font-size: 12px;
+      }
+      .hint {
+        font-size: 11px;
+        color: #777;
+        margin-top: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>TypoMorph</h1>
+    <div class="row">Tier: <span id="status">checking…</span></div>
+    <div class="row">
+      <label
+        ><input type="checkbox" id="cloud" /> Enable cloud prompt
+        improvement</label
+      >
+      <div class="hint">
+        Only sent to the network when this is checked and you use "Improve
+        prompt".
+      </div>
+    </div>
+    <div class="row">
+      <label for="apiKey">Anthropic API key (bring your own key, free)</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-..." />
+      <div class="hint">Leave blank to use a Pro subscription instead.</div>
+    </div>
+    <div class="row"><button id="save">Save</button></div>
+    <div class="row">
+      <a href="https://typomorph.example.com/pro" target="_blank"
+        >Get Pro (managed cloud, no key needed)</a
+      >
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

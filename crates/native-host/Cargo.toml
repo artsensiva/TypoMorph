@@ -1,0 +1,19 @@
+[package]
+name = "native-host"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "native_host"
+path = "src/lib.rs"
+
+[[bin]]
+name = "typomorph-native-host"
+path = "src/main.rs"
+
+[dependencies]
+core-engine = { path = "../core-engine" }
+licensing = { path = "../licensing" }
+prompt-cloud = { path = "../prompt-cloud" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

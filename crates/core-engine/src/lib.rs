@@ -1,11 +1,16 @@
 use std::collections::HashMap;
 
+pub mod layout;
+pub mod prompt_detector;
+pub mod prompt_improver;
+
 pub const RING_BUFFER_CAPACITY: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Script {
     Latin,
     Cyrillic,
+    Devanagari,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -16,6 +21,7 @@ pub enum Language {
     French,
     Russian,
     Ukrainian,
+    Hindi,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,23 +128,17 @@ impl HardFilterTrie {
     }
 
     pub fn rejects(&self, text: &str) -> bool {
-        let normalized = normalize_for_script(text, Script::Latin);
-        let lowered = normalized.to_ascii_lowercase();
+        let lowered = text.to_lowercase();
         for start in 0..lowered.chars().count() {
             let mut node = &self.root;
-            let mut chars_seen = 0;
             for ch in lowered.chars().skip(start) {
                 let Some(next) = node.children.get(&ch) else {
                     break;
                 };
                 node = next;
-                chars_seen += 1;
                 if node.terminal {
                     return true;
                 }
-            }
-            if chars_seen == 0 {
-                break;
             }
         }
         false
@@ -207,12 +207,18 @@ impl LanguageClassifier {
                 build_french_profile(),
                 build_russian_profile(),
                 build_ukrainian_profile(),
+                build_hindi_profile(),
             ],
         }
     }
 
     pub fn classify(&self, text: &str) -> Language {
         let lower = text.to_lowercase();
+
+        if lower.chars().any(is_devanagari_char) {
+            return Language::Hindi;
+        }
+
         let has_cyrillic = lower.chars().any(is_cyrillic_char);
 
         if has_cyrillic {
@@ -286,6 +292,7 @@ impl LanguageClassifier {
             Language::Russian => 0.70 + (0.15 * length_factor),
             Language::English if contains_english_markers(&text.to_lowercase()) => 0.94,
             Language::German if contains_german_markers(&text.to_lowercase()) => 0.94,
+            Language::Hindi => 0.90 + (0.08 * length_factor),
             _ => 0.55 + (0.25 * length_factor),
         };
 
@@ -302,6 +309,10 @@ impl Default for LanguageClassifier {
 fn is_cyrillic_char(ch: char) -> bool {
     let code = ch as u32;
     (0x430..=0x44f).contains(&code) || code == 0x451 || ch == 'ё'
+}
+
+fn is_devanagari_char(ch: char) -> bool {
+    (0x0900..=0x097f).contains(&(ch as u32))
 }
 
 fn contains_ukrainian_markers(text: &str) -> bool {
@@ -387,6 +398,13 @@ fn normalize_for_script(text: &str, script: Script) -> String {
             }
             Script::Cyrillic => {
                 if is_cyrillic_char(ch) {
+                    out.push(ch);
+                } else if ch.is_ascii_whitespace() {
+                    out.push(' ');
+                }
+            }
+            Script::Devanagari => {
+                if is_devanagari_char(ch) {
                     out.push(ch);
                 } else if ch.is_ascii_whitespace() {
                     out.push(' ');
@@ -827,6 +845,91 @@ fn build_ukrainian_profile() -> LanguageProfile {
     }
 }
 
+fn build_hindi_profile() -> LanguageProfile {
+    let char_weights = HashMap::from([
+        ('अ', 20),
+        ('आ', 25),
+        ('इ', 15),
+        ('ई', 8),
+        ('उ', 12),
+        ('ऊ', 4),
+        ('ए', 18),
+        ('ओ', 14),
+        ('क', 55),
+        ('ख', 10),
+        ('ग', 22),
+        ('घ', 4),
+        ('च', 18),
+        ('छ', 5),
+        ('ज', 20),
+        ('झ', 4),
+        ('ट', 12),
+        ('ठ', 4),
+        ('ड', 10),
+        ('ढ', 3),
+        ('ण', 8),
+        ('त', 60),
+        ('थ', 12),
+        ('द', 45),
+        ('ध', 10),
+        ('न', 65),
+        ('प', 40),
+        ('फ', 6),
+        ('ब', 30),
+        ('भ', 10),
+        ('म', 48),
+        ('य', 30),
+        ('र', 55),
+        ('ल', 35),
+        ('व', 32),
+        ('श', 14),
+        ('ष', 6),
+        ('स', 45),
+        ('ह', 42),
+        ('ा', 70),
+        ('ि', 55),
+        ('ी', 45),
+        ('ु', 28),
+        ('ू', 10),
+        ('े', 40),
+        ('ै', 15),
+        ('ो', 22),
+        ('ौ', 6),
+        ('ं', 20),
+        ('ः', 3),
+        ('ँ', 3),
+        ('्', 38),
+    ]);
+    let bigrams = map_from_pairs(&[
+        ("है", 40),
+        ("का", 38),
+        ("की", 30),
+        ("के", 32),
+        ("में", 34),
+        ("से", 22),
+        ("को", 26),
+        ("ने", 20),
+        ("और", 18),
+        ("पर", 14),
+    ]);
+    let trigrams = map_from_pairs(&[
+        ("नही", 12),
+        ("कार", 10),
+        ("रहा", 9),
+        ("वाला", 8),
+        ("लिए", 11),
+    ]);
+    LanguageProfile {
+        language: Language::Hindi,
+        script: Script::Devanagari,
+        _char_total: char_weights.values().sum(),
+        char_weights,
+        bigrams,
+        trigrams,
+        filter: HardFilterTrie::new(&["the", "and", "tion", "ing", "qu"]),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};
@@ -885,5 +988,140 @@ mod tests {
             "avg classification time was {:?}",
             avg_time
         );
+    }
+
+    #[test]
+    fn ring_buffer_starts_empty() {
+        let buffer = RingBuffer::<8>::new();
+        assert_eq!(buffer.len(), 0);
+        assert!(buffer.is_empty());
+        assert_eq!(buffer.as_string(), "");
+    }
+
+    #[test]
+    fn ring_buffer_preserves_order_before_wraparound() {
+        let mut buffer = RingBuffer::<5>::new();
+        for ch in "abc".chars() {
+            buffer.push(ch);
+        }
+        assert_eq!(buffer.len(), 3);
+        assert!(!buffer.is_empty());
+        assert_eq!(buffer.as_string(), "abc");
+    }
+
+    #[test]
+    fn ring_buffer_wraps_and_keeps_only_the_latest_n_in_order() {
+        let mut buffer = RingBuffer::<4>::new();
+        for ch in "abcdef".chars() {
+            buffer.push(ch);
+        }
+        assert_eq!(buffer.len(), 4);
+        assert_eq!(buffer.as_string(), "cdef");
+    }
+
+    #[test]
+    fn ring_buffer_default_matches_new() {
+        let buffer: RingBuffer<8> = RingBuffer::default();
+        assert_eq!(buffer.len(), 0);
+        assert_eq!(buffer.as_string(), "");
+    }
+
+    #[test]
+    fn hard_filter_trie_rejects_only_configured_substrings() {
+        let trie = HardFilterTrie::new(&["xx", "qzq"]);
+        assert!(trie.rejects("aaxxbb"));
+        assert!(trie.rejects("qzq"));
+        assert!(!trie.rejects("abcdef"));
+        assert!(!trie.rejects(""));
+    }
+
+    #[test]
+    fn hard_filter_trie_with_no_patterns_rejects_nothing() {
+        let trie = HardFilterTrie::new(&[]);
+        assert!(!trie.rejects("anything at all"));
+        assert!(!trie.rejects(""));
+    }
+
+    #[test]
+    fn profile_score_of_empty_text_is_negative_infinity() {
+        let profile = build_english_profile();
+        assert_eq!(profile.score(""), f64::NEG_INFINITY);
+        // Digits are neither alphabetic nor whitespace, so Latin normalization drops them all.
+        assert_eq!(profile.score("12345"), f64::NEG_INFINITY);
+    }
+
+    #[test]
+    fn empty_input_classifies_as_english_without_panicking() {
+        let classifier = LanguageClassifier::new();
+        assert_eq!(classifier.classify(""), Language::English);
+
+        let buffer = RingBuffer::<32>::new();
+        assert_eq!(classifier.classify_buffer(&buffer), Language::English);
+    }
+
+    #[test]
+    fn whitespace_only_input_has_zero_confidence() {
+        let classifier = LanguageClassifier::new();
+        let (_, confidence) = classifier.classify_with_confidence("   ");
+        assert_eq!(confidence, 0.0);
+    }
+
+    #[test]
+    fn german_phrase_is_classified_correctly() {
+        let classifier = LanguageClassifier::new();
+        let text = "ich bin mit dem auf und ein sehr guter mensch";
+        assert_eq!(classifier.classify(text), Language::German);
+    }
+
+    #[test]
+    fn ukrainian_marker_selects_ukrainian_over_russian() {
+        let classifier = LanguageClassifier::new();
+        let text = "привіт як справи";
+        assert_eq!(classifier.classify(text), Language::Ukrainian);
+    }
+
+    #[test]
+    fn mixed_ukrainian_and_russian_markers_prefer_ukrainian() {
+        let classifier = LanguageClassifier::new();
+        let text = "їжа і чай ъ";
+        assert_eq!(classifier.classify(text), Language::Ukrainian);
+    }
+
+    #[test]
+    fn hindi_phrase_is_classified_correctly() {
+        let classifier = LanguageClassifier::new();
+        let text = "नमस्ते दुनिया, यह एक परीक्षण है";
+        assert_eq!(classifier.classify(text), Language::Hindi);
+    }
+
+    #[test]
+    fn hindi_takes_priority_over_latin_and_cyrillic_scripts_when_mixed() {
+        let classifier = LanguageClassifier::new();
+        let text = "hello नमस्ते привет";
+        assert_eq!(classifier.classify(text), Language::Hindi);
+    }
+
+    #[test]
+    fn hindi_classification_has_high_confidence() {
+        let classifier = LanguageClassifier::new();
+        let (language, confidence) = classifier.classify_with_confidence("नमस्ते");
+        assert_eq!(language, Language::Hindi);
+        assert!(confidence >= 0.90, "confidence was {confidence}");
+    }
+
+    #[test]
+    fn devanagari_normalization_keeps_only_devanagari_and_whitespace() {
+        let normalized = normalize_for_script("नमस्ते hello 123", Script::Devanagari);
+        assert_eq!(normalized, "नमस्ते  ");
+    }
+
+    #[test]
+    fn ring_buffer_classifies_hindi_text_end_to_end() {
+        let classifier = LanguageClassifier::new();
+        let mut buffer = RingBuffer::<32>::new();
+        for ch in "नमस्ते दुनिया".chars() {
+            buffer.push(ch);
+        }
+        assert_eq!(classifier.classify_buffer(&buffer), Language::Hindi);
     }
 }

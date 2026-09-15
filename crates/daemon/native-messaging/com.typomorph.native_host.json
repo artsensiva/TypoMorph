@@ -1,0 +1,9 @@
+{
+  "name": "com.typomorph.native_host",
+  "description": "TypoMorph native messaging host (layout correction and local prompt improvement)",
+  "path": "/usr/bin/typomorph-native-host",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://REPLACE_WITH_YOUR_EXTENSION_ID/"
+  ]
+}
