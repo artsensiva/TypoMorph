@@ -252,13 +252,26 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
     let devices = keyboard
         .devices()
         .iter()
-        .map(|(name, path)| format!("{} ({})", name, path.display()))
+        .map(|info| {
+            format!(
+                "{} ({}) [{:04x}:{:04x}]",
+                info.name,
+                info.path.display(),
+                info.vendor,
+                info.product
+            )
+        })
         .collect::<Vec<_>>();
     eprintln!(
         "Listening on {} devices: [{}]",
         devices.len(),
         devices.join(", ")
     );
+    // Diagnostic: if two entries above share the same [vendor:product], they
+    // are almost certainly the same physical dongle/keyboard exposing more
+    // than one /dev/input node (e.g. a main keyboard interface plus a
+    // separate "Consumer Control" HID collection) — confirms or rules out
+    // the duplicate-physical-device hypothesis without waiting for a repro.
     let mut buffer = RingBuffer::<RING_BUFFER_CAPACITY>::new();
     let mut scan_codes = Vec::new();
     let classifier = LanguageClassifier::new();
@@ -331,7 +344,10 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
         let Some(character) = keycode_to_character(event.keycode, &current_layout) else {
             continue;
         };
-        eprintln!("Key pressed: {} / {:?}", event.keycode, character);
+        eprintln!(
+            "Key pressed: {} / {:?} [source={:?} ts={}]",
+            event.keycode, character, event.source, event.timestamp_ms
+        );
         // TODO: buffer is only ever reset on a word boundary (whitespace/punctuation),
         // never on a pause. A stray keystroke typed seconds earlier, with no boundary
         // character after it, stays in the buffer and attaches to the next word (e.g.

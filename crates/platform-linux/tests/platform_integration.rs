@@ -6,10 +6,13 @@ fn platform_event_contract_is_stable_for_daemon_integration() {
         keycode: 28,
         pressed: true,
         repeat: false,
+        source: "test-keyboard".to_string(),
+        timestamp_ms: 0,
     };
     assert_eq!(event.keycode, 28);
     assert!(event.pressed);
     assert!(!event.repeat);
+    assert_eq!(event.source, "test-keyboard");
 }
 
 #[test]

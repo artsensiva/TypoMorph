@@ -32,11 +32,33 @@ pub enum PlatformError {
     UnsupportedBackend(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawKeyEvent {
     pub keycode: RawKeycode,
     pub pressed: bool,
     pub repeat: bool,
+    /// Name of the device that produced this event, as reported by evdev.
+    /// Diagnostic: lets the daemon log which of several concurrently-open
+    /// devices a given keystroke actually came from.
+    pub source: String,
+    /// Kernel-assigned event timestamp (`InputEvent::timestamp()`),
+    /// milliseconds since the Unix epoch. This is the time the driver
+    /// stamped the event, not when this process read it off the queue —
+    /// useful for checking whether events from different reader threads
+    /// were emitted in the order they were delivered to `recv()`.
+    pub timestamp_ms: u64,
+}
+
+/// Identifies a physical device independently of its (possibly duplicated)
+/// name string, for spotting the same USB dongle exposing several logical
+/// `/dev/input/eventN` nodes (e.g. a main keyboard interface plus a
+/// "Consumer Control" HID collection on the same receiver).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceInfo {
+    pub name: String,
+    pub path: PathBuf,
+    pub vendor: u16,
+    pub product: u16,
 }
 
 pub struct EvdevKeyboard {
@@ -45,7 +67,7 @@ pub struct EvdevKeyboard {
 }
 
 pub struct MultiEvdevKeyboard {
-    devices: Vec<(String, PathBuf)>,
+    devices: Vec<DeviceInfo>,
     events: Receiver<RawKeyEvent>,
     suppressed: Arc<AtomicBool>,
 }
@@ -82,7 +104,7 @@ fn spawn_keyboard_listener(
     sender: mpsc::Sender<RawKeyEvent>,
     active_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<PathBuf>>>,
     suppressed: Arc<AtomicBool>,
-) -> Option<String> {
+) -> Option<DeviceInfo> {
     let Ok(mut device) = Device::open(&path) else {
         return None;
     };
@@ -109,15 +131,25 @@ fn spawn_keyboard_listener(
         set.insert(path.clone());
     }
 
+    let input_id = device.input_id();
+    let info = DeviceInfo {
+        name: name.clone(),
+        path: path.clone(),
+        vendor: input_id.vendor(),
+        product: input_id.product(),
+    };
+
     let name_clone = name.clone();
     let p_clone = path.clone();
     let set_clone = active_paths.clone();
 
     thread::spawn(move || {
         eprintln!(
-            "[DEBUG] Dynamic reader thread started for: {:?} ({})",
+            "[DEBUG] Dynamic reader thread started for: {:?} ({}) vendor={:04x} product={:04x}",
             name_clone,
-            p_clone.display()
+            p_clone.display(),
+            input_id.vendor(),
+            input_id.product()
         );
         loop {
             let Ok(batch) = device.fetch_events() else {
@@ -132,10 +164,17 @@ fn spawn_keyboard_listener(
             };
             for event in batch {
                 if let InputEventKind::Key(key) = event.kind() {
+                    let timestamp_ms = event
+                        .timestamp()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
                     let raw_ev = RawKeyEvent {
                         keycode: key.code(),
                         pressed: event.value() == 1,
                         repeat: event.value() == 2,
+                        source: name_clone.clone(),
+                        timestamp_ms,
                     };
                     if deliver_event(&sender, &suppressed, raw_ev) == DeliveryOutcome::ChannelClosed
                     {
@@ -146,7 +185,7 @@ fn spawn_keyboard_listener(
         }
     });
 
-    Some(name)
+    Some(info)
 }
 
 impl MultiEvdevKeyboard {
@@ -159,13 +198,13 @@ impl MultiEvdevKeyboard {
 
         let initial_paths = keyboard_paths().unwrap_or_default();
         for path in initial_paths {
-            if let Some(name) = spawn_keyboard_listener(
+            if let Some(info) = spawn_keyboard_listener(
                 path.clone(),
                 sender.clone(),
                 active_paths.clone(),
                 suppressed.clone(),
             ) {
-                devices.push((name, path));
+                devices.push(info);
             }
         }
 
@@ -207,7 +246,7 @@ impl MultiEvdevKeyboard {
         self.suppressed.store(false, Ordering::SeqCst);
     }
 
-    pub fn devices(&self) -> &[(String, PathBuf)] {
+    pub fn devices(&self) -> &[DeviceInfo] {
         &self.devices
     }
 
@@ -235,13 +274,21 @@ impl EvdevKeyboard {
     }
 
     pub fn next_events(&mut self) -> Result<Vec<RawKeyEvent>, std::io::Error> {
+        let source = self.device.name().unwrap_or("unnamed keyboard").to_string();
         let mut events = Vec::new();
         for event in self.device.fetch_events()? {
             if let InputEventKind::Key(key) = event.kind() {
+                let timestamp_ms = event
+                    .timestamp()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
                 events.push(RawKeyEvent {
                     keycode: key.code(),
                     pressed: event.value() == 1,
                     repeat: event.value() == 2,
+                    source: source.clone(),
+                    timestamp_ms,
                 });
             }
         }
@@ -486,7 +533,9 @@ mod tests {
             RawKeyEvent {
                 keycode: 30,
                 pressed: true,
-                repeat: false
+                repeat: false,
+                source: "test-keyboard".to_string(),
+                timestamp_ms: 0,
             }
             .keycode,
             30
@@ -495,7 +544,9 @@ mod tests {
             !RawKeyEvent {
                 keycode: 30,
                 pressed: false,
-                repeat: true
+                repeat: true,
+                source: "test-keyboard".to_string(),
+                timestamp_ms: 0,
             }
             .pressed
         );
@@ -506,6 +557,8 @@ mod tests {
             keycode: 30,
             pressed: true,
             repeat: false,
+            source: "test-keyboard".to_string(),
+            timestamp_ms: 0,
         }
     }
 
