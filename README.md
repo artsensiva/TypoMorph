@@ -50,9 +50,9 @@ The installer fetches the latest signed `.deb` from [GitHub Releases](https://gi
 ### Install a downloaded Debian package
 
 ```bash
-sudo apt install ./typomorph_0.1.0_amd64.deb
+sudo apt install ./typomorph_0.2.0_amd64.deb
 # or:
-sudo dpkg -i ./typomorph_0.1.0_amd64.deb
+sudo dpkg -i ./typomorph_0.2.0_amd64.deb
 sudo apt-get -f install
 ```
 
