@@ -1,10 +1,11 @@
-# Safari — not implemented
+# Safari extension status
 
-Safari Web Extensions cannot be a plain `manifest.json` + JS tree like Chrome/Firefox. They must be packaged inside a native macOS/iOS app target built with Xcode (`safari-web-extension-converter` or a native `SFSafariExtensionHandler`), and native messaging on Safari works through that wrapping app rather than a standalone stdio binary.
+A Safari extension is not implemented and is deferred beyond the first public release.
 
-This repository's toolchain is Linux-only (the daemon depends on `evdev`/`uinput`/GNOME Shell D-Bus), so there is no macOS build here to host a Safari extension against. If Safari support is wanted later, it would need:
+Native TypoMorph support for Safari on macOS remains part of the first-release browser matrix. The absence of an extension must not categorically disable safe fields; protected and unknown-safety fields must remain unprocessed.
 
-1. A macOS-side companion (out of scope for this repo).
-2. Reusing `extensions/chrome`'s `background.js`/`popup.js` as a starting point — Safari's WebExtension API is Chromium/Firefox-compatible for the parts this extension uses (`storage`, `contextMenus`, `scripting`), but `nativeMessaging` is replaced by Safari's App Extension message-passing to the wrapping app.
+The repository currently has no macOS adapter. Safari compatibility therefore needs actual implementation and real-device validation on both supported Mac architectures. It is not established by the Chrome/Firefox extension sources.
 
-No code is provided here beyond this note.
+If a Safari extension is reconsidered later, evaluate the then-current Apple packaging, native communication, permission, signing, and distribution requirements before selecting an architecture. No wrapper project or store publication is authorized by this note.
+
+See [Compatibility](../../docs/COMPATIBILITY.md), [Architecture](../../docs/ARCHITECTURE.md), and [Roadmap](../../docs/ROADMAP.md).

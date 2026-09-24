@@ -1,97 +1,48 @@
-# TypoMorph browser extensions
+# Existing browser extensions
 
-Thin clients: a background script relays selected text to the local
-`typomorph-native-host` process over Chrome/Firefox Native Messaging
-(stdio, no network) for free layout correction and local prompt improvement.
-Cloud prompt improvement only runs if you explicitly enable it in the popup
-and either supply your own Anthropic API key or hold an active Pro license.
+## Status and first-release decision
 
-No extension in this directory has been published to any store. Loading
-them is a manual, local step; publishing is a separate manual step for
-later, after review.
+Chrome/Edge and Firefox extension sources exist, but no extension here has been published to a store. Their first-release inclusion is conditional on measured native browser coverage and an owner decision.
 
-## 1. Install the native messaging host
+An absent extension must not disable all browser fields. The desktop application must use native field information where reliable and suspend in protected or unknown-safety contexts. Safari browser compatibility is required on macOS; a Safari extension is deferred.
 
-The `.deb` package (`scripts/build-deb.sh`) installs `typomorph-native-host`
-to `/usr/bin/` and drops native-messaging manifest files for Chrome,
-Chromium, Edge, and Firefox automatically. If you haven't installed the
-`.deb` yet, or want to iterate without repackaging, register it manually:
+See [COMPATIBILITY.md](../docs/COMPATIBILITY.md) and [OPEN_QUESTIONS.md](../docs/OPEN_QUESTIONS.md).
 
-```bash
-cargo build --release -p native-host
-mkdir -p ~/.config/google-chrome/NativeMessagingHosts
-cat > ~/.config/google-chrome/NativeMessagingHosts/com.typomorph.native_host.json <<EOF
-{
-  "name": "com.typomorph.native_host",
-  "description": "TypoMorph native messaging host",
-  "path": "$(pwd)/target/release/typomorph-native-host",
-  "type": "stdio",
-  "allowed_origins": ["chrome-extension://YOUR_EXTENSION_ID/"]
-}
-EOF
-```
+## Current implementation
 
-For Firefox, use `~/.mozilla/native-messaging-hosts/` and
-`"allowed_extensions": ["typomorph@example.com"]` instead of
-`allowed_origins` (matching `browser_specific_settings.gecko.id` in
-`extensions/firefox/manifest.json`).
+The extensions send selected text through Native Messaging to the local `typomorph-native-host` process. That host runs independently of the daemon. This is not an implemented shared settings, pause, safety, and entitlement lifecycle.
 
-**Important:** `allowed_origins`/`allowed_extensions` must match the real
-extension ID, which you only get after loading the extension (see below).
-The system-wide manifests shipped by the `.deb` use placeholder IDs — edit
-them (or the per-user copy above) once you know your actual ID.
+Legacy actions include layout correction and prompt improvement. Popup controls still expose Free/Pro and cloud/API-key behavior; optional cloud paths can transmit selected text. Those features do not match the approved release product or privacy boundary.
 
-## 2. Load the extension unpacked
+Current manifests request `nativeMessaging`, `contextMenus`, `activeTab`, `scripting`, and `storage`. The existing selected-text action uses on-demand page access. This inventory does not prove that protected fields and every editable context satisfy the new safety requirements.
 
-**Chrome / Edge:**
-1. Go to `chrome://extensions` (or `edge://extensions`).
-2. Enable "Developer mode".
-3. Click "Load unpacked" and select `extensions/chrome/`.
-4. Copy the extension ID Chrome assigns it, and put it into the native
-   messaging manifest's `allowed_origins` from step 1
-   (`chrome-extension://<ID>/`).
-5. Reload the extension after editing the manifest file.
+## Controlled local development
 
-**Firefox:**
-1. Go to `about:debugging#/runtime/this-firefox`.
-2. Click "Load Temporary Add-on" and select
-   `extensions/firefox/manifest.json`.
-3. The extension ID is fixed by `browser_specific_settings.gecko.id`
-   (`typomorph@example.com`) — no copying needed, but the native messaging
-   manifest's `allowed_extensions` must contain that same value.
+Only use synthetic selected text when testing this legacy code. Existing instructions are for development, not supported end-user installation.
 
-Temporary Firefox add-ons are removed on browser restart; for persistent
-local testing, package and sign through
-[addons.mozilla.org](https://addons.mozilla.org) (self-distribution) — a
-manual step, not automated here.
+1. Build the host with `cargo build --release -p native-host`.
+2. Register a browser-specific Native Messaging manifest pointing to the actual `typomorph-native-host` executable.
+3. For Chrome/Edge, load `extensions/chrome/` through the browser's unpacked-extension developer interface.
+4. Match the assigned extension ID in the host manifest's `allowed_origins`.
+5. For Firefox, load `extensions/firefox/manifest.json` through its temporary-add-on interface and match its ID in `allowed_extensions`.
+6. Reload after manifest changes and verify the local host connection using synthetic input.
 
-## 3. Use it
+The current Debian packaging includes native-host manifests with placeholder extension IDs. A package installation alone therefore does not establish a working browser connection. Firefox's current source ID is `typomorph@example.com`; production identity/signing and persistent delivery remain release-design work.
 
-- Select text in any editable field, then either right-click → "Fix
-  keyboard layout" / "Improve prompt (TypoMorph)", or use the keyboard
-  shortcuts (`Ctrl+Shift+L` / `Ctrl+Shift+I` by default — configurable at
-  `chrome://extensions/shortcuts`).
-- Click the toolbar icon to see your Free/Pro tier and to set an Anthropic
-  API key for the free bring-your-own-key cloud path.
+Typical per-user manifest directories for the existing Linux setup are `~/.config/google-chrome/NativeMessagingHosts/` and `~/.mozilla/native-messaging-hosts/`. Verify the actual browser/version's location during implementation. Do not infer macOS/Windows host registration from these Linux paths.
 
-## Building distributable packages
+## Packaging
+
+From the repository root:
 
 ```bash
-./build.sh
+bash extensions/build.sh
 ```
 
-Produces `dist/typomorph-chrome.zip` and `dist/typomorph-firefox.zip` —
-suitable for manual upload to the Chrome Web Store / addons.mozilla.org
-after your own review. This script does not publish anything.
+The script creates Chrome and Firefox ZIP packages under `extensions/dist/`. It does not publish them or prove compatibility. Store publication and additional repositories are deferred.
 
-## Safari
+## Required design if extensions are selected
 
-Not implemented — see `safari/README.md` for why and what it would take.
+Before implementation, settle missing/stopped-desktop behavior, reliable context safety, correction ownership, shared settings/access state, and delivery. Prevent duplicate corrections and preserve the no-network/no-persistence input boundary.
 
-## Permissions
-
-`nativeMessaging`, `contextMenus`, `activeTab`, `scripting`, `storage`.
-No host permissions, no `<all_urls>`, no persistent content script — text
-is only read from the page when you explicitly trigger an action (keyboard
-shortcut or context menu), via `activeTab` + on-demand `scripting`
-injection.
+Do not advertise the current extension as a standalone approved product or assume its independent host already obeys desktop pause and account rules. [ARCHITECTURE.md](../docs/ARCHITECTURE.md) records the distinction. See [Safari status](safari/README.md) for that deferred extension.

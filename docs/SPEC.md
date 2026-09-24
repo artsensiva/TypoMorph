@@ -1,365 +1,199 @@
-# TypoMorph Product Specification
+# TypoMorph product specification
 
-## 1. Overview
+Status: approved product baseline transcribed for documentation review.
+Decision basis: owner-approved discovery review, 2026-09-24.
+This specification describes the first public release, not the capabilities of the current prototype.
 
-TypoMorph is a commercial, ultra-low-latency, cross-platform intelligent input utility designed to automatically switch keyboard layouts and apply contextual auto-correction across multilingual writing workflows. The system operates natively on macOS, Windows, and Linux, with a strong emphasis on user privacy, deterministic performance, and compatibility with modern input methods (including IME-driven languages such as Chinese, Japanese, Hindi, and Bengali).
+## 1. Authority and purpose
 
-The product is positioned as a premium utility for knowledge workers, software developers, multilingual writers, and enterprise customers who require high-confidence input switching without sacrificing typing performance or privacy.
+The Product Owner approves product changes. [DECISIONS.md](DECISIONS.md) records the final choices and superseded alternatives. Open details are listed in [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md); a TBD is not a promise of support.
 
-## 2. Product Mission
+TypoMorph repairs text typed under the wrong keyboard layout for everyday multilingual writing. The core experience is local, conservative, and compatible with ordinary browsing, messaging, and document editing.
 
-TypoMorph exists to reduce friction in multilingual text entry by:
+The product must not change correct text solely because its language differs from the selected keyboard layout's name. It does not provide spelling correction, translation, AI prompt improvement, or general writing assistance.
 
-- inferring the active language and keyboard layout from recent keystroke context;
-- switching layouts before the user perceives a disruption;
-- correcting likely transcription mistakes with minimal false positives;
-- respecting OS-native composition and IME boundaries;
-- avoiding disk-based logging and retaining input data only in volatile memory; and
-- enabling enterprise-grade policy controls for managed environments.
+## 2. First-public-release boundary
 
-## 3. Problem Statement
+All of the following are required, with detailed matrices in [COMPATIBILITY.md](COMPATIBILITY.md):
 
-Modern multilingual users frequently switch among languages and keyboard layouts while working in browsers, editors, terminals, and messaging clients. Existing solutions are often:
+- Input languages: English, Russian, Ukrainian, German, French, Spanish.
+- OS targets: Ubuntu LTS GNOME Wayland/X11 and Windows 11 on x86-64; macOS on Apple Silicon and Intel.
+- Automatic correction during word entry, manual correction, safe undo, and context suppression.
+- Tray/menu-bar controls, settings, onboarding, and UI localization in the six languages.
+- Shared email account, trial, annual/perpetual entitlements, three devices, Stripe payments, and self-service device transfer.
+- Signed direct-download distribution and consent-based installation of verified updates.
+- Automated tests, real-application tests, and a closed beta before public release.
 
-- too slow for real-time high-speed typing;
-- prone to incorrect language detection when users mix scripts or keyboard layouts;
-- disruptive to IME-driven languages and composition windows;
-- invasive from a privacy standpoint; and
-- unreliable in code-writing contexts where auto-correction should be suppressed.
+There is no calendar deadline. Release as soon as the required scope and readiness gates are met; do not silently reduce scope to ship sooner.
 
-TypoMorph addresses these issues by combining a fast probabilistic scoring engine with OS-aware input bridge logic and strict privacy safeguards.
+Browser extensions are conditional on native compatibility evidence and further owner approval. Their absence must not categorically disable a browser. Safari extension is deferred.
 
-## 4. Goals
+## 3. Functional requirements
 
-### 4.1 Primary Goals
+### FR-01: Correct wrong layouts during typing
 
-1. Deliver a language switching engine that is responsive enough to feel instantaneous to users.
-2. Support direct alphabetic languages and IME-aware hybrid languages in a modular way.
-3. Maintain compatibility with macOS, Windows, and Linux input systems without requiring root privileges for standard use.
-4. Keep all transient typing data in RAM only and avoid zero-disk logging.
-5. Enable premium features for power users and enterprise customers without degrading the core experience.
+Evaluate the evolving word and apply a correction as soon as evidence is sufficient, without requiring a space. Wait for more characters or abstain if ambiguous.
 
-### 4.2 Secondary Goals
+Acceptance:
+- Correctly typed text remains unchanged, including English written using a suitable non-English layout.
+- A detected language alone never authorizes a switch.
+- Genuine keystrokes and their order survive correction.
+- Low-confidence input is not force-corrected.
 
-1. Provide transparent, low-noise UX that does not unexpectedly rewrite text.
-2. Offer developer-friendly behavior that disables correction inside code-like contexts.
-3. Support cloud-synced custom dictionaries as an optional premium feature.
-4. Allow fleet deployment and policy enforcement in enterprise deployments.
+### FR-02: Select and maintain exact layouts
 
-## 5. Non-Goals
+Only explicitly selected supported layouts installed in the OS participate. Onboarding proposes discovered layouts for confirmation.
 
-The system is not intended to provide:
+New installed layouts are detected during operation or at the next start and offered for inclusion; they are never silently enrolled. Changing manually to an unselected or unsupported layout clears context and suspends correction.
 
-- a full general-purpose AI writing assistant;
-- permanent local text logging or analytics storage;
-- root-required Linux input interception for normal usage;
-- broad desktop automation beyond keyboard input management and text correction; or
-- invasive monitoring of user content beyond ephemeral language classification decisions.
+All unambiguous directed conversions between selected supported layouts are in scope. Distinguish language identification from actual layout mapping and correction support. Exact OS identifiers must be tested before appearing in the supported list.
 
-## 6. Target Users
+### FR-03: Manual correction
 
-### 6.1 End Users
+A configurable shortcut corrects the last word or an explicitly selected fragment in a supported safe field.
 
-- multilingual knowledge workers;
-- developers working in multiple languages;
-- writers producing bilingual or multilingual content;
-- users with keyboard layouts that differ from their active language;
-- users who rely on Latin alphabet languages and IME-based input methods.
+- Apply a unique confident candidate immediately.
+- Offer candidate previews when ambiguous.
+- Last-word correction changes the system layout to the target.
+- Selection correction preserves the current system layout.
+- No system-clipboard copy/paste fallback is allowed; explain unavailable direct selection access.
 
-### 6.2 Enterprise Users
+### FR-04: Undo
 
-- organizations with privacy requirements;
-- IT admins managing fleet deployments across macOS, Windows, and Linux;
-- teams needing zero-keystroke retention guarantees and policy controls.
+A configurable shortcut restores the latest automatic correction's original text and previous layout while preserving subsequent input whenever restoration is still demonstrably safe in the same field.
 
-## 7. Scope
+Suppress re-correction of the canceled current word until its completion. Do not create a persistent word exception. If cursor/focus/selection changes or other events invalidate the undo context, make undo unavailable instead of guessing. Retain only bounded, transient undo information in RAM; timing and size limits remain open.
 
-### 7.1 In Scope
+### FR-05: Respect manual layout changes
 
-- proactive language detection;
-- keyboard layout switching across supported platforms;
-- contextual auto-correction heuristics for alphabetic languages;
-- IME-aware routing for Pinyin, Romaji, and Indic phonetics;
-- code-aware input suppression for developer scenarios;
-- secure system integration using platform-appropriate input APIs;
-- enterprise policy support and compliance posture.
+On manual layout change, clear analysis context and suspend automatic correction until the next word boundary. Resume only if the resulting layout is selected, supported, and safe in the current context. Do not immediately reverse the user's choice.
 
-### 7.2 Out of Scope
+### FR-06: Context lifecycle and stale decisions
 
-- translation service integration in the first release;
-- generating large language model summaries inside the typing loop;
-- cross-device learning models that require cloud processing for core detection;
-- supporting every niche keyboard layout in the initial rollout.
+Reset analysis context on a field/window change, cursor movement, selection change, paste, and typing inactivity. Specify the timeout and exact boundary rules through tests before beta.
 
-## 8. Functional Requirements
+Analysis and undo state have different purposes: resetting analysis is not permission to retain invalid undo state or to discard a still-safe undo without the agreed policy. Revalidate context before mutation. Delayed decisions cannot be applied to a different field or stale text.
 
-### FR-01: Multi-Language Detection
-The product shall detect and classify the active language from recent keystroke sequences using a fast scoring model. Detection shall support at minimum:
+### FR-07: Protected and unknown fields
 
-- English (US/UK)
-- Russian
-- Spanish
-- Portuguese (BR/PT)
-- German
-- French
-- Italian
-- Ukrainian
-- Simplified Chinese (Pinyin)
-- Japanese (Romaji)
-- Hindi (ITRANS/InScript)
-- Bengali
-
-The language classifier shall operate as a low-latency decision engine with confidence thresholds that allow quick switching without excessive false positives.
-
-Acceptance criteria:
-- The classifier produces a ranked language candidate list within the input event processing window.
-- A confidence delta above threshold is required before a layout switch is triggered.
-- Mixed-language sessions do not force a layout switch after a single ambiguous token.
-
-### FR-02: Keyboard Layout Switching
-The product shall change the active system keyboard layout or input source when language confidence exceeds the configured threshold. Switching must respect the active operating system and input stack.
-
-Acceptance criteria:
-- Layout change occurs within the product latency target under normal system load.
-- The user is not forced into a switch when the current language remains highly probable.
-- Layout changes are suppressed or deferred during active IME composition when the system requires native composition.
-
-### FR-03: Inline Auto-Correction
-The product shall offer contextual correction for common typing mistakes in supported alphabetic languages. Corrections shall be based on language model scores, sequence validity, and a strict blacklist of illegal character transitions.
-
-Acceptance criteria:
-- Corrective actions are only triggered when the confidence score exceeds the rule threshold.
-- High-risk corrections are rejected when they would alter user intent in ambiguous contexts.
-- Corrective behavior is disabled when the user is in a high-stakes composition or code-writing context.
-
-### FR-04: Dual-Layer Language Scoring
-The product shall implement a dual-layer classifier combining:
-
-1. Laplace-smoothed bigram/trigram log-probability scoring; and
-2. illegal sequence hard-filter trie validation.
-
-This model must be tunable per language pack and support lightweight runtime updates.
-
-Acceptance criteria:
-- Illegal sequences are rejected before probabilistic scoring is used for final selection.
-- Model updates remain backward compatible with existing language pack contracts.
-- Low-resource environments still produce acceptable classification performance.
-
-### FR-05: IME-Aware Routing
-The product shall recognize native composition contexts and avoid breaking OS-managed IME flows. The engine shall distinguish plain English text from Pinyin/Indic phonetic input and avoid direct rewriting during active composition windows.
-
-Acceptance criteria:
-- Pinyin and Indic typing is not mistaken for plain Latin typing when the OS composition stack is active.
-- Native composition windows remain under OS control.
-- IME passthrough mode preserves user-recognized input without introducing extra synthetic events.
-
-### FR-06: Developer Mode
-The product shall provide a developer mode that automatically suppresses correction and layout switching inside code blocks, strings, and other code-like contexts.
-
-Acceptance criteria:
-- A code editor or IDE integration can signal a code context block to the engine.
-- Correction triggers are deferred or disabled in code contexts.
-- The user can override the mode for specific windows or programs.
-
-### FR-07: Smart Clipboard History
-Premium users shall have access to smart clipboard history features that integrate with the same language-aware context model without introducing persistent disk logging.
-
-Acceptance criteria:
-- Clipboard snapshots are retained only within the in-memory session policy.
-- Clipboard history is not written to disk by default.
-- Clipboard entries can be purged on demand without corrupting the active input session.
+Do not collect text into buffers or correct input in recognized protected/password fields or when field safety cannot be reliably established. Clear previous input state on entry. Do not treat missing context information as permission.
 
-### FR-08: Language Pack Modularity
-The system shall support plug-and-play language packs that can be enabled, disabled, and updated independently. Tier 1 and Tier 2 pack types shall be supported with distinct routing and model behavior.
+An absent browser extension does not disable all browser fields. Use reliable native context when available; suppress only protected or unresolved contexts.
 
-Acceptance criteria:
-- A language pack can be added without rebuilding the core engine.
-- Invalid or incompatible packs fail gracefully and are quarantined from runtime use.
-- Pack metadata includes supported scripts, confidence ranges, and routing policy.
+### FR-08: Application exclusions and privileges
 
-### FR-09: Cross-Platform Input Abstraction
-The platform layer shall abstract input hook registration, layout switching, and synthetic event emission behind a common interface.
+Disable processing by default in recognized terminals, IDEs, games, remote-desktop clients, and VM windows. Users can explicitly opt applications in where the shared safety rules still hold. Code-block-level editor integration, remote-session support, and game-chat compatibility are not promised for this release.
 
-Acceptance criteria:
-- The core engine depends only on platform abstraction interfaces.
-- Platform-specific logic is isolated to the OS implementation modules.
-- Failures in one platform integration do not crash the core detection engine.
+Run as the ordinary user. Request necessary OS permissions during setup, but do not run the entire application permanently as administrator/root or add a privileged compatibility mechanism for this release.
 
-### FR-10: Enterprise Controls
-Enterprise deployments shall support policy management for zero-keystroke retention, user/group enforcement, and managed installation.
+### FR-09: Composition and shortcuts
 
-Acceptance criteria:
-- Policies can be enforced through MDM or Group Policy.
-- Zero-retention mode is enforced at the service design level.
-- Enterprise config can disable features not required for the deployment.
+With an active IME, suspend input processing and clear buffers; IME-language correction is deferred.
 
-### FR-11: User Override and Safety
-Users shall be able to disable automatic switching, disable correction, or temporarily pause TypoMorph for a session. The product shall respect explicit user preferences.
+For dead-key sequences in supported alphabetic layouts, wait for composition to complete before considering the resulting character. Handle casing, punctuation, and diacritics according to the actual layout.
 
-Acceptance criteria:
-- Manual override takes precedence over inference-based changes.
-- User-level controls are immediately effective without requiring a restart.
-- Unsafe or ambiguous actions are suppressed rather than auto-applied.
+Exclude command chords involving Ctrl, Cmd/Meta, or command-use Alt from text interpretation. Handle Shift and AltGr/Option as character modifiers when appropriate for that layout. Do not replay command chords as text.
 
-### FR-12: Logging and Privacy Controls
-The product shall not persist raw keystrokes or user text to disk. Only ephemeral in-memory buffers are allowed for runtime processing.
+### FR-10: Concurrent typing and failures
 
-Acceptance criteria:
-- No disk logging occurs in default operation.
-- Typed session buffers are bounded and discarded after use.
-- Privacy mode disables cloud sync or analytics features by default.
+If continuing user input prevents safe replacement, skip or defer the correction and revalidate before retrying. Never discard genuine keys or reorder characters in order to finish a correction.
 
-## 9. Non-Functional Requirements
+On capture/replacement failure, stop corrections, clear transient context, and expose an error state without blocking ordinary typing. Automatically resume only after readiness is re-established. Repeated failures require explicit user resumption; retry limits are to be defined.
 
-### NFR-01: Latency Budget
-The system shall maintain a sub-1ms end-to-end processing target for the core keystroke classification path under steady-state conditions.
+### FR-11: GUI and onboarding
 
-Requirements:
-- the ring buffer must be fixed-size and zero-heap during ordinary operation;
-- the scoring engine must avoid allocations on the critical path;
-- platform bridging must be optimized to minimize event delays.
+Provide a tray/menu-bar icon and a settings window for selected layouts, configurable shortcuts, application exceptions, sound controls, and license/account state.
 
-### NFR-02: Reliability
-The product shall maintain a high availability posture for foreground typing sessions and shall recover from transient input failures without user-visible interruption.
+Offer autostart during onboarding, enable it after confirmation, and allow changes later. Represent temporary suspension and its reason in the icon/menu without a popup at each context transition. Do not include field contents or typed text in status messages.
 
-Requirements:
-- automatic re-registration of hooks after OS events or permission changes;
-- graceful fallback to passive monitoring when a platform integration is temporarily unavailable;
-- no crash loops during invalid keyboard layouts or composition state changes.
+### FR-12: Persistent pause
 
-### NFR-03: Memory Discipline
-The system shall not allocate dynamically on the hot path for ordinary key processing.
+Manual pause persists across restarts until explicit resumption. Stop background input collection and clear buffers. Manual correction while paused is limited to explicitly selected text obtained on demand in a safe field; last-word correction without selection is unavailable.
 
-Requirements:
-- ring buffer size capped at 32 tokens;
-- probabilistic scoring performed on static or preallocated structures;
-- volatile memory boundaries enforced to prevent retention beyond session time.
+Paid/trial entitlement and field safety remain required for any manual action.
 
-### NFR-04: Security and Trust
-The product shall be designed to minimize the perception of a keylogger while satisfying OS compliance requirements.
+### FR-13: Sounds and localization
 
-Requirements:
-- code signing and notarization compatibility for macOS;
-- Windows hook behavior aligned to low-level input-safe patterns;
-- Linux udev rules and user-space injection patterns that avoid unsafe privilege acquisition.
+Provide two short, distinct signals: automatic correction with a layout change, and undo. Emit one signal per action. Sounds are off by default, may be enabled during setup, and have a global menu toggle.
 
-### NFR-05: Portability
-TypoMorph shall run on supported Ubuntu X11/Wayland, Windows, and macOS systems without requiring fundamental architectural differences in the detection engine.
+Localize onboarding, settings, and user-facing errors into English, Russian, Ukrainian, German, French, and Spanish. Start with the supported OS UI language, otherwise English; allow an independent manual UI-language choice. Technical documentation and source code remain English.
 
-### NFR-06: Compliance Readiness
-The product shall support compliance requirements for enterprise environments, including:
+### FR-14: Access, accounts, and commercial lifecycle
 
-- SOC2-oriented control design;
-- GDPR-aligned privacy processing;
-- localized policy constraints for managed deployments;
-- zero-retention configuration for enterprise customers.
+Implement the approved rules in [LICENSING.md](LICENSING.md):
+- One seven-day trial per verified-email account, no card required, up to three computers sharing the same start/end dates.
+- USD 7 annually with automatic renewal after explicit paid enrollment, or USD 19 perpetual access with all future released updates.
+- No permanent free tier or language-based payment gate.
+- Shared features and safety protections across valid trial and paid access.
+- All correction disables on expiry, except the agreed seven-day failed-renewal grace.
+- Ordinary keyboard use never depends on entitlement or service availability.
 
-## 10. Product Constraints and Assumptions
+### FR-15: Distribution and updates
 
-- The product is designed for real-time keyboard interaction, so critical-path performance is prioritized over exhaustive model complexity.
-- OS input APIs differ in composition semantics; platform-specific routing is required.
-- IME systems can block direct text mutation when composition is active; therefore behavioral guarding is required.
-- Some code editors and terminals may require custom integration to fully suppress unwanted correction.
-- Some enterprise customers may require strict privacy mode and local-only operation without cloud sync.
+Distribute from the website as a Debian package, signed Windows installer, and signed/notarized macOS application in a DMG.
 
-## 11. Edge-Case Matrix
+Automatically check for updates with an opt-out; install only after consent. Missing/invalid authenticity verification blocks installation and leaves the current version in place. A warning-confirmation bypass is not allowed.
 
-| Scenario | Risk | Expected Behavior |
+Use one update stream for annual and perpetual customers. Store publication and additional repositories are deferred. Website prices are USD, applicable taxes included; optional dated EUR estimates have no effect on the charged currency.
+
+### FR-16: Support and diagnostics
+
+Offer email or a contact form with no guaranteed response time, equally for trial, subscription, and perpetual users. Publish common troubleshooting instructions.
+
+Release diagnostics exclude typed text and key sequences. No automatic telemetry/crash uploads. The user can inspect and deliberately send a technical report. Development-only local text diagnostics are permitted when necessary under the boundaries in [PRIVACY.md](PRIVACY.md).
+
+## 4. Non-functional requirements
+
+| ID | Requirement | Acceptance direction |
 | --- | --- | --- |
-| User types in English while Russian layout is active | False positive switch | Require confidence delta and sequence validity before switching |
-| User enters Chinese Pinyin text | Misclassification as Latin English | Route through IME-aware passthrough and preserve native composition |
-| User types in IDE with code strings | Incorrect auto-correction | Suppress correction inside code-like contexts |
-| User alternates between languages mid-sentence | Rapid toggle churn | Use hysteresis and trailing context buffer to avoid oscillation |
-| User enters accented characters or dead keys | Invalid sequence misclassification | Accept valid sequences and delay correction during composition |
-| User toggles layout manually | Engine override conflict | Manual input mode takes precedence over auto-switching |
-| User switches app focus during typing | Stale event context | Flush transient event buffer and reinitialize session context |
-| User enters text in terminal with shell escapes | Erroneous correction | Detect non-editing contexts and suppress mutation |
-| User uses an IME candidate selection menu | Interference with composition | Do not synthesize replacements during active IME selection |
-| User copies large text or clipboard content | Buffer contamination | Ignore clipboard-driven path unless explicitly enabled in premium mode |
-| User types rapidly with mixed scripts | Sequence ambiguity | Provide conservative fallback; defer correction until confidence rises |
-| User has multiple keyboard layouts installed | Wrong target layout chosen | Map active language to exact configured layout and verify OS state |
+| NFR-01 | Input integrity | No lost/reordered genuine input or stale-target replacement; known reproducible violations block release |
+| NFR-02 | Latency | At least 95% of short-word replacements complete within 100 ms from the correction decision on agreed hardware; no perceptible slowing of ordinary typing |
+| NFR-03 | Accuracy | Measure false corrections and missed corrections separately for every supported direction; approve numeric thresholds after baseline measurement and before beta |
+| NFR-04 | Privacy | Transient bounded input/undo state; no release input persistence or transmission; no automatic telemetry/crash reporting |
+| NFR-05 | Recovery | Safe cessation on fault; readiness check before recovery; persistent pause after repeated faults |
+| NFR-06 | Compatibility | Validate exact OS/layout/application combinations; do not infer support from a build, dictionary, or matching language name |
+| NFR-07 | Offline access | Entire confirmed trial/annual period offline; perpetual use offline indefinitely after activation |
+| NFR-08 | Release trust | Verify update authenticity before installation; ordinary-user runtime; signed/notarized target packages |
 
-## 12. Error Recovery and State Machine
+The evidence-accumulation time while a user types is separate from NFR-02. Define short-word length, end-of-replacement observation, sample count, hardware/load, and confidence thresholds before using the target as a pass/fail measurement.
 
-### 12.1 State Model
+The old universal sub-millisecond end-to-end and zero-allocation promises are not acceptance claims for the existing implementation. Memory/CPU budgets and OS-level swap/dump boundaries remain open. Lower latency is a post-release priority.
 
-The runtime shall maintain a bounded state machine with explicit transitions for error and recovery handling.
+## 5. Safety precedence and required examples
 
-State definitions:
+Safety and input integrity take precedence over automatic/manual mode, valid payment, user app overrides, and confidence. Losing a signal must not convert an unsafe context into an allowed one.
 
-- Idle: no active typing sequence or active detection event.
-- Monitoring: collecting a bounded keystroke window and computing scores.
-- Candidate: a language candidate set has been produced and confidence is under evaluation.
-- Switching: platform-specific layout change is being requested.
-- Composing: native IME composition is active; corrections are suppressed.
-- Correction: a probable correction is being validated before application.
-- Fallback: the engine cannot confidently determine a target language and reverts to current layout.
-- Paused: user-disabled or enterprise policy disabled.
-- Error: repeated hook failures, invalid OS state, or integration fault.
-- Recovery: re-registering hook, reinitializing ring buffer, or re-establishing platform permissions.
+| Scenario | Required behavior |
+| --- | --- |
+| Confident wrong-layout word fragment | Correct before a delimiter when safe |
+| Correct English on a German layout | Leave text and layout unchanged |
+| Multiple plausible targets | Automatic abstention; manual candidate choice |
+| User undoes and keeps typing | Preserve later characters; do not re-correct the current word |
+| Focus changes before replacement | Discard the stale action |
+| Protected/unknown field | No text buffering or correction; clear preceding state |
+| IME active | Suspend, clear context, leave native composition alone |
+| Dead key still composing | Wait; evaluate only after the resulting character is available |
+| Typing races with replacement | Preserve genuine input; skip/defer correction |
+| No direct selection access | Explain unavailability; do not use clipboard fallback |
+| Paused after restart | Remain paused; no background collection |
+| Entitlement expires | Stop correction, not ordinary typing |
+| Update authenticity fails | Keep current version; block update |
 
-### 12.2 Transition Rules
+## 6. Explicit exclusions
 
-1. Idle -> Monitoring when input events are observed.
-2. Monitoring -> Candidate when enough evidence exists to rank languages.
-3. Candidate -> Switching when confidence delta exceeds threshold and no IME conflict exists.
-4. Candidate -> Fallback when confidence is weak or ambiguous.
-5. Monitoring/Correction -> Composing when the OS reports active composition or IME window.
-6. Any active state -> Paused when user override or policy disables the engine.
-7. Any state -> Error on invalid platform state, repeated hook failure, or unsupported layout.
-8. Error -> Recovery where the system re-establishes the input bridge and clears volatile buffers.
-9. Recovery -> Idle after a successful re-initialization.
+Do not build AI prompt improvement (local or cloud), general spelling correction, user-word learning/dictionaries, clipboard history, dictionary sync, Enterprise/fleet controls, code-aware editor plugins, IME correction, remote-session/VM support, Safari extension, custom/phonetic layouts, other Linux environments, Windows 10, Linux/Windows ARM, or store/repository distribution for this release.
 
-### 12.3 Recovery Policies
+Next language expansion priorities are Greek, Turkish, Polish, and Portuguese; they are not first-release obligations. Chrome/Edge/Firefox extensions are a conditional decision, not an unconditional deliverable.
 
-- Clear the ring buffer on unrecoverable ambiguity.
-- Re-register OS hooks after permission changes or sleep/resume events.
-- Suppress corrective actions when OS composition state is unstable.
-- Prefer degraded functionality over unsafe language switching.
-- Log only operational failures internally and never raw keystrokes.
+## 7. Release acceptance and approval gates
 
-## 13. Acceptance Criteria Summary
+Release requires:
+1. [BUG-001](BUGS.md) reproduced, resolved, and covered by regression evidence.
+2. Approved concrete compatibility and measurement matrices.
+3. Automated checks, real-application validation on all target platforms and a closed beta.
+4. Accuracy and latency results reported by direction/context rather than a single pooled score.
+5. No known release-blocking input loss, unsafe-field processing, input disclosure, or update-authenticity bypass.
+6. Validated commerce/offline access, packaging, UI localization, and consent flows.
+7. Public claims, checkout, privacy notice, and customer terms aligned with demonstrated behavior.
 
-The product is considered acceptable when:
-
-1. It accurately handles supported direct alphabetic languages with minimal false switches.
-2. It preserves native IME composition behavior for Chinese, Japanese, Hindi, and Bengali workloads.
-3. It maintains typing responsiveness within the performance target.
-4. It disables unsafe corrections in high-risk contexts such as code editing and active composition.
-5. It does not write raw keystrokes or user content to disk.
-6. It supports platform-specific integrations on macOS, Windows, and Linux.
-7. It provides enterprise-grade policy controls and privacy mode.
-
-## 14. Risks and Mitigations
-
-### 14.1 Risk: False-positive layout switches
-Mitigation: use a confidence delta, hysteresis, and a minimum context window before switching.
-
-### 14.2 Risk: IME destruction or composition breakage
-Mitigation: treat IME windows as high-priority composition states and route through passthrough logic.
-
-### 14.3 Risk: Over-correction during typing bursts
-Mitigation: require strong score confidence and legal sequence validation before applying edits.
-
-### 14.4 Risk: Privacy complaints
-Mitigation: limit all processing to volatile memory and avoid disk persistence by default.
-
-### 14.5 Risk: OS-specific API instability
-Mitigation: isolate platform logic behind stable interfaces and include graceful failure recovery.
-
-## 15. Open Questions
-
-- Which first-wave language packs are mandatory versus optional for launch?
-- What level of IDE integration is required for the initial version: generic suppression, editor-specific hooks, or both?
-- How should the premium clipboard history feature be governed for enterprise zero-retention standards?
-- Which Linux desktop environments will be supported in the first GA release?
-
-## 16. Definition of Done
-
-TypoMorph shall be considered ready for implementation planning when:
-
-- the language scope and pack priorities are approved;
-- the platform abstraction contracts are stable;
-- privacy constraints and retention policies are explicitly documented;
-- the detection and correction confidence rules are accepted by product stakeholders; and
-- the developer mode and IME-safe behavior criteria are approved for beta validation.
+Product requirements were approved. These documents still need owner review. Only after documentation approval may a detailed implementation plan be proposed; only after its separate approval may application code change.

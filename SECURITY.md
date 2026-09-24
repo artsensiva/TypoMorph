@@ -1,32 +1,41 @@
 # Security
 
-## Data flow: local vs cloud
+## Current status
 
-TypoMorph's core feature — keyboard layout correction — runs entirely locally and offline, for every supported language, free, with no network access at all. The only feature that can leave the machine is prompt improvement, and only when explicitly requested:
+TypoMorph is a Linux prototype with approved replacement requirements, not a verified secure cross-platform release. The diagnostic daemon currently prints input characters/buffers to stderr, which a service manager may retain. Legacy prompt commands and browser actions still include optional network text paths.
 
-- **Local (default):** `typomorph improve-prompt --stdin` runs a deterministic, offline rule-based cleanup. No network call is made.
-- **Bring-your-own-key (`--cloud --api-key ...` or `$TYPOMORPH_ANTHROPIC_KEY`):** the prompt text is sent directly to `api.anthropic.com` using a key you supply. TypoMorph does not see or store this key beyond the current process's environment/argument.
-- **Managed (`--cloud`, requires an active Pro license):** the prompt text is sent to TypoMorph's own hosted proxy, which forwards it to Anthropic on your behalf.
+These are implementation gaps, not approved release behavior. See [PRIVACY.md](docs/PRIVACY.md) for the data boundary and [ARCHITECTURE.md](docs/ARCHITECTURE.md) for source evidence. Use synthetic input for authorized development checks.
 
-In all cases, only the prompt text itself is transmitted — never other keystrokes, buffers, or license key material. See [README: Free vs Pro](README.md#free-vs-pro-prompt-improvement) for the full comparison.
+## Required release boundaries
 
-## Verifying releases
+- Keep input and undo content in bounded transient RAM; never persist or transmit typed text/key sequences.
+- Do not collect or correct protected/password or unknown-safety fields. Clear prior context on entry.
+- Apply safety uniformly to trial, annual, and perpetual access; user application overrides cannot bypass it.
+- Preserve genuine input and validate the target context before replacement or undo.
+- No AI prompt feature, clipboard fallback, automatic telemetry, or automatic crash upload.
+- Run as the ordinary user with explicit OS permission onboarding.
+- Keep account/payment/update traffic separate from the input path.
+- Authenticate offline entitlements; a local unkeyed checksum is not proof of service issuance.
+- Verify update authenticity before installation, with no user-confirmed bypass for invalid/missing verification.
 
-See [README: Verifying releases](README.md#verifying-releases) for checksum and cosign signature verification of published `.deb` packages.
+OS-controlled memory copies, metadata retention, service security, and signing/key recovery require design and validation. Do not claim those controls exist because they appear in this policy. [OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) tracks the unresolved details.
 
-## Supported versions
+## Distribution and verification
 
-TypoMorph is pre-1.0. Only the latest tagged release is supported with security fixes; there is no long-term-support branch yet.
+The existing [release workflow](.github/workflows/release.yml) is configured to sign Debian-release checksum metadata using cosign. No artifact has been downloaded or verified during documentation work. The current website installer checks checksums and is not the approved signed updater.
 
-## Scope
-
-In scope: the `daemon`, `core-engine`, `licensing`, `platform-linux`, `prompt-cloud`, and `native-host` crates in this repository, the browser extensions in `extensions/`, and the release/packaging pipeline (`.github/workflows/`, `scripts/`). Vulnerabilities in third-party dependencies should be reported upstream; this repo's `cargo-audit` CI job (`.github/workflows/ci.yml`) tracks known advisories against `Cargo.lock` on every PR.
+The target distribution requires authenticated Debian packages, a signed Windows installer, and a signed/notarized macOS application. Exact verification procedures and identities must be documented alongside the actual release artifacts after implementation. See [TESTING.md](docs/TESTING.md).
 
 ## Reporting a vulnerability
 
-Please do not open a public GitHub issue for a security vulnerability.
+Do not include real typed content, credentials, payment details, or personal account data in a public issue.
 
-1. Preferred: use GitHub's private vulnerability reporting for this repository (the "Report a vulnerability" button under the repo's Security tab).
-2. Alternative: email `support@typomorph.com` with a description, reproduction steps, and impact assessment.
+Use GitHub private vulnerability reporting if enabled for this repository, or the project's existing contact address, `support@typomorph.com`. Confirm the reporting route is operational before the public release. Reports should describe impact, affected version, and synthetic reproduction steps.
 
-This is a small project without a dedicated security team — expect a best-effort acknowledgment, not a contractual SLA. Please give us reasonable time to investigate and ship a fix before any public disclosure.
+Support is best effort with no contractual SLA. Do not describe a response time or security certification as guaranteed.
+
+## Scope and maintenance
+
+The existing workspace, browser code, native host, packaging, website installer, and CI/release configuration are in scope for review. Dependencies are covered by the current CI audit configuration; an audit job does not guarantee that all vulnerabilities are absent.
+
+The repository is pre-1.0 and has no committed long-term security-support branch or finalized post-release support-duration policy. The first-release commercial offers share one update stream; perpetual access includes future released updates, not a promise of perpetual development.

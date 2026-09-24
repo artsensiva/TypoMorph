@@ -1,293 +1,90 @@
 # TypoMorph
 
-[![Rust 2021](https://img.shields.io/badge/rust-2021-orange?logo=rust)](https://www.rust-lang.org/)
-[![Linux](https://img.shields.io/badge/platform-Linux-ffc107?logo=linux&logoColor=black)](https://www.kernel.org/)
-[![Wayland](https://img.shields.io/badge/Wayland-supported-78e5dc)](https://wayland.freedesktop.org/)
-[![X11](https://img.shields.io/badge/X11-supported-78e5dc)](https://www.x.org/)
-[![License](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
+TypoMorph is being developed as a local keyboard-layout correction utility for everyday multilingual writing in browsers, messages, and documents.
 
-> Intelligent cross-platform input daemon for multilingual typing, layout recovery, and privacy-first desktop input.
+**Status: existing Linux prototype; approved product requirements; documentation under review. The first public release described here is not implemented or verified yet.** Product discovery was approved on 2026-09-24. Documentation approval and subsequent implementation-plan approval are separate gates.
 
-TypoMorph detects when text was entered with the wrong keyboard layout and corrects it locally. The runtime is built around a bounded Rust engine, short-lived in-memory context, and native Linux input integration. It is designed for low-latency desktop typing without telemetry, cloud classification, or raw keystroke persistence.
+## Approved first-release product
 
-**Zero telemetry. Local in-memory processing. Sub-millisecond classification target.**
+- Correct wrong-layout text during word entry as soon as confidence is sufficient; preserve correct text and abstain when uncertain.
+- Automatic correction, manual correction of the last word or a selection, and safe undo.
+- Six input and interface languages: English, Russian, Ukrainian, German, French, and Spanish, using the explicitly selected layouts in the compatibility matrix.
+- Ubuntu LTS with GNOME on Wayland and X11, Windows 11, and macOS; exact tested versions remain to be approved.
+- Tray/menu-bar controls, a settings window, application exclusions, and optional sounds, off by default.
+- Release input processing only in transient memory: no typed-text transmission, input logging, automatic telemetry, or automatic crash reporting.
+- Seven-day account-wide trial without a card, then **USD 7/year with automatic renewal or USD 19 once for a perpetual license**. Both paid options cover three computers and the same features. The perpetual license includes all future released updates.
+- No AI prompt improvement, spelling correction, permanent free tier, or Enterprise tier in this release.
 
-## Feature Highlights
+Prices include applicable taxes. Payment is in USD; the website will also show a dated approximate EUR equivalent when its reference rate is sufficiently current. These are approved product requirements, not an announcement that checkout or licensing already exists.
 
-- **Real-time intelligent typo detection**: compares the active layout with an alternate-layout projection and uses language signals before proposing a switch.
-- **Sub-millisecond keystroke replacement**: captures Linux key events through `evdev` and emits guarded Backspace/replacement sequences through `uinput`.
-- **Systemd user-daemon integration**: runs as a per-user service and supports udev access rules for `/dev/uinput` and `/dev/input/event*`.
-- **Zero telemetry and total local privacy**: classification uses volatile bounded buffers; raw keystrokes and user text are not sent to a remote service.
-- **Wayland and X11 model**: Linux device access is handled at the input layer, with GNOME Shell D-Bus integration for layout switching.
-- **Offline-first licensing**: layout correction is unlimited and free for every supported language with no account at all; optional licensing state (stored locally as hashed metadata) only ever gates the Pro cloud prompt-improvement backend.
-- **Interactive simulation**: `typomorph test-input` exercises the classifier entirely in user space without root access or Linux input devices.
+## Current implementation and known limitations
 
-## How It Works
+The current workspace contains six crates:
 
-TypoMorph keeps the hot path small and conservative:
+| Crate | Current responsibility |
+| --- | --- |
+| `core-engine` | Language scoring, a 32-character ring buffer, limited layout conversion, and legacy prompt heuristics |
+| `platform-linux` | evdev input, uinput emission, GNOME-oriented layout switching |
+| `daemon` | Linux CLI, live orchestration, basic tray, systemd and Debian packaging |
+| `licensing` | Legacy Lemon Squeezy activation and local status storage |
+| `prompt-cloud` | Legacy optional network prompt-improvement client; excluded from the approved release scope |
+| `native-host` | Existing browser Native Messaging process, independent of the running daemon |
 
-1. The Linux adapter receives a raw key event from an `evdev` device.
-2. The daemon appends the corresponding character to a bounded 32-token ring buffer.
-3. The core classifier scores the observed text and its alternate keyboard-layout projection.
-4. A switch is considered only when the alternate candidate is coherent enough and clears the configured confidence margin.
-5. The platform adapter requests a layout change through GNOME Shell D-Bus and can emit a minimal replacement sequence through `uinput`.
-6. Native composition and developer-context guards can suppress mutation when the input context is unsafe.
+The classifier has English, Spanish, German, French, Russian, Ukrainian, and Hindi profiles. Physical layout conversion is based on incomplete US/RU tables; recognizing a language or returning a layout identifier does not establish correction support.
 
-The system prefers a safe no-op over an ambiguous rewrite.
+The live daemon evaluates words at a boundary rather than implementing the approved within-word behavior. Windows/macOS adapters, the full settings UI, Stripe accounts/billing, and the approved entitlement system are not implemented.
 
-## Quick Install
+**The diagnostic branch prints input characters and buffers to stderr.** A service manager can retain that output. The prototype therefore does not satisfy the approved release privacy requirements. Legacy cloud-prompt commands also still exist; their presence is not authorization to include them in the new product.
 
-### One-line installer
+[BUG-001](docs/BUGS.md) records the owner's report that correction never occurs on Ubuntu 26.04.1 / GNOME 50 / Wayland, including after typing a space. An active tray icon does not prove that capture or replacement works. The report has not yet been independently reproduced.
 
-On a supported Debian or Ubuntu system:
+## Documentation map
 
-```bash
-curl -sSL https://raw.githubusercontent.com/artsensiva/TypoMorph/main/landing/install.sh | bash
-```
+| Document | Purpose |
+| --- | --- |
+| [Product specification](docs/SPEC.md) | Approved behavior, scope, and release criteria |
+| [Decision log](docs/DECISIONS.md) | Final decisions and superseded historical requirements |
+| [Compatibility](docs/COMPATIBILITY.md) | Language/layout/platform/browser targets and evidence status |
+| [Licensing and commerce](docs/LICENSING.md) | Trial, subscription, perpetual access, devices, payments, and refunds |
+| [Privacy](docs/PRIVACY.md) | Input boundaries, operational data, and diagnostics |
+| [Architecture](docs/ARCHITECTURE.md) | Observed implementation and target constraints, without a final technology selection |
+| [Testing](docs/TESTING.md) | Required automated and real-application evidence |
+| [Known bugs](docs/BUGS.md) | User-reported reproduction record and investigation status |
+| [Roadmap](docs/ROADMAP.md) | Approval gates, proposed delivery stages, and deferred work |
+| [Open questions](docs/OPEN_QUESTIONS.md) | Unresolved decisions, feasibility risks, and release blockers |
+| [Security](SECURITY.md) | Current caveats, release security boundaries, and reporting |
 
-The installer fetches the latest signed `.deb` from [GitHub Releases](https://github.com/artsensiva/TypoMorph/releases), verifies its SHA-256 checksum, installs the user-service and udev integration, reloads the user systemd manager, and enables `typomorph.service`. If no matching release asset is found, it prints instructions to build from source instead of failing silently. Review remote install scripts before executing them in production environments. See [Verifying releases](#verifying-releases) below to check a downloaded package manually.
+The local workspace and approved owner decisions take precedence over older GitHub descriptions, source comments, historical prompts, and landing-page copy. The documents in this map are a reviewable transcription of the approved discovery; they do not authorize application changes.
 
-### Install a downloaded Debian package
+## Development and simulation
 
-```bash
-sudo apt install ./typomorph_0.2.0_amd64.deb
-# or:
-sudo dpkg -i ./typomorph_0.2.0_amd64.deb
-sudo apt-get -f install
-```
-
-Enable the user daemon after installation:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now typomorph.service
-systemctl --user status typomorph.service
-```
-
-The Debian package includes `99-typomorph.rules`, which grants the active desktop session access to uinput and input event devices through `uaccess`. A new login session may be required after installing or changing udev permissions.
-
-### Build from source
-
-Requirements:
-
-- Rust stable with Rust 2021 support
-- Linux with `evdev`, `/dev/uinput`, and a supported desktop session
-- Permission to read the relevant `/dev/input/event*` device
-- A user systemd session for service integration
-
-Build the workspace:
+The current full workspace is Linux-oriented. Install Rust with Rust 2021 support, `libdbus-1-dev`, and `pkg-config` before building.
 
 ```bash
-cargo build --release
-```
-
-The daemon binary is produced at:
-
-```text
-target/release/typomorph
-```
-
-Build the Debian package with the repository helper:
-
-```bash
-./scripts/build-deb.sh
-```
-
-### Verifying releases
-
-Every tagged release publishes `typomorph_<version>_amd64.deb`, a `SHA256SUMS` file, and a keyless [cosign](https://docs.sigstore.dev/) signature over that checksum file (`SHA256SUMS.sig` / `SHA256SUMS.pem`), built and signed by the `Release` GitHub Actions workflow.
-
-```bash
-# 1. Verify the checksum file's signature against the GitHub Actions OIDC identity
-cosign verify-blob \
-  --certificate SHA256SUMS.pem \
-  --signature SHA256SUMS.sig \
-  --certificate-identity-regexp "https://github.com/artsensiva/TypoMorph/.github/workflows/release.yml@.*" \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  SHA256SUMS
-
-# 2. Verify the .deb matches the signed checksum
-sha256sum -c SHA256SUMS
-```
-
-`landing/install.sh` performs step 2 automatically; step 1 is worth doing yourself if you download artifacts manually.
-
-## Interactive Simulation
-
-Test the classifier without `/dev/input`, `/dev/uinput`, D-Bus, or root permissions:
-
-```bash
-printf '%s\n' \
-  'ghbdtn' \
-  'FHNTV' \
-  'руддщ цщкдв' \
-  | cargo run -p daemon -- test-input
-```
-
-Typical output includes the detected language, confidence, switch decision, target layout, and corrected buffer:
-
-```text
-detected=Russian confidence=0.98 switch=yes target=Some("ru") corrected="привет"
-detected=Russian confidence=0.98 switch=yes target=Some("ru") corrected="АРТЕМ"
-detected=English confidence=0.94 switch=yes target=Some("us") corrected="hello world"
-```
-
-Raw keycode input is also supported:
-
-```text
-KEYS 16 17 18 18 24
-```
-
-Adjust the simulation threshold when experimenting with ambiguous input:
-
-```bash
-cargo run -p daemon -- test-input --threshold 0.60
-```
-
-## CLI
-
-```text
-typomorph run [--input /dev/input/event0] [--layout us] [--dry-run]
-typomorph test-input [--layout us] [--threshold 0.60]
-typomorph improve-prompt --stdin [--cloud] [--api-key KEY]
-typomorph license activate <KEY>
-typomorph status
-```
-
-`--dry-run` keeps the daemon from opening uinput or connecting to GNOME Shell D-Bus, while still requiring an evdev input source for the live path. Use `test-input` for a completely device-free simulation.
-
-`improve-prompt` reads a prompt from stdin, detects whether it looks like an AI prompt, and cleans it up. Without `--cloud` it never touches the network — see [Free vs Pro: prompt improvement](#free-vs-pro-prompt-improvement) below for what `--cloud` does and requires. While `run` is active and about to auto-correct a buffer that looks prompt-like, TypoMorph also shows a desktop notification suggesting `Ctrl+Alt+I` as a shortcut to run the same local improvement instead of switching layout.
-
-## Workspace Architecture
-
-The workspace separates portable classification from Linux-specific input operations:
-
-### `core-engine`
-
-Portable language and layout decision engine. It provides:
-
-- a bounded `RingBuffer<32>` for recent input;
-- script-aware normalization (Latin, Cyrillic, Devanagari);
-- Laplace-smoothed n-gram scoring;
-- illegal-sequence hard filtering;
-- confidence and fallback logic for conservative switching;
-- `prompt_detector`: offline heuristic scoring of whether text looks like an AI prompt;
-- `prompt_improver`: offline, deterministic, free-forever prompt cleanup (no AI, no network).
-
-The core crate does not depend on Linux, D-Bus, uinput, network access, or desktop services.
-
-### `daemon`
-
-The executable orchestration layer and CLI. It provides:
-
-- the `typomorph` binary;
-- the `run`, `test-input`, `improve-prompt`, `license`, and `status` commands;
-- unlimited layout routing for every supported language, free for all users;
-- alternate-layout candidate evaluation;
-- developer-window filtering;
-- a local prompt-improvement hotkey (`Ctrl+Alt+I`) and pre-switch notification hint;
-- systemd user-service integration.
-
-### `platform-linux`
-
-Linux-native input and desktop integration. It provides:
-
-- raw keyboard monitoring with `evdev`;
-- synthetic key emission with `/dev/uinput`;
-- GNOME Shell D-Bus layout switching;
-- platform error boundaries and input event types.
-
-### `licensing`
-
-Offline and online license-state handling. It provides Lemon Squeezy activation transport, local integrity-checked status storage, hashed license metadata, and Pro entitlement checks — used only to gate the managed cloud prompt-improvement backend, never language or layout correction.
-
-### `prompt-cloud`
-
-Client for the paid, network-based prompt-improvement path. Two backends: bring-your-own-key (calls the Anthropic API directly with a user-supplied key, free) and managed (calls TypoMorph's hosted proxy, requires an active Pro license). Never invoked unless `--cloud` is passed explicitly.
-
-### `native-host`
-
-Stateless Chrome/Firefox Native Messaging host (`typomorph-native-host`) for the browser extensions in [`extensions/`](extensions/README.md). Reuses `core-engine` and `prompt-cloud` directly rather than talking to the running `typomorph` daemon over IPC — Chrome spawns a fresh subprocess per connection, so there is nothing long-lived to connect to.
-
-## Browser extensions
-
-`extensions/` holds thin-client Chrome and Firefox extensions (Manifest V3) that relay selected page text to the local native host for free layout correction and prompt improvement — no network access unless you opt into cloud improvement in the popup. See [`extensions/README.md`](extensions/README.md) for loading, native-messaging-host registration, and packaging. Not published to any store; that remains a manual step.
-
-## Privacy and Security Model
-
-TypoMorph is designed around the following boundaries:
-
-- raw input is processed in memory and kept inside a bounded active context;
-- no raw keystroke logging is written to disk by the engine;
-- no cloud language API is required for classification;
-- the local license file stores hashes and status metadata rather than the raw license key;
-- developer-mode and active-composition safeguards can suppress automatic mutation;
-- Linux device access is granted through udev session access rather than running the daemon as root.
-
-The Linux systemd unit should run as the logged-in user. Do not run the daemon as root unless you have a specific deployment policy that requires it.
-
-### Free vs Pro: prompt improvement
-
-Layout correction (this project's core feature) is entirely free, offline, and unlimited for every supported language — it never touches the network, licensed or not. Prompt improvement is the one feature with a network-connected path:
-
-| | Local (always available) | Bring-your-own-key (`--cloud --api-key`) | Managed (`--cloud`, Pro) |
-|---|---|---|---|
-| Cost | Free | Free (you pay Anthropic directly) | Paid TypoMorph subscription |
-| Network | None | Your prompt is sent to `api.anthropic.com` | Your prompt is sent to TypoMorph's proxy, which forwards it to Anthropic |
-| Requires | Nothing | Your own Anthropic API key | An active Pro license |
-| Quality | Deterministic rule-based cleanup (whitespace, punctuation, abbreviations) | Full AI rewrite | Full AI rewrite |
-
-Nothing is ever sent to any network unless you pass `--cloud` explicitly. `typomorph run`'s live hotkey (`Ctrl+Alt+I`) and pre-switch notification only ever use the local, offline path.
-
-## Development
-
-Run formatting, tests, and workspace checks:
-
-```bash
-cargo fmt --all
+cargo build --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo check --workspace
 ```
 
-Run only the daemon tests:
+A device-free simulation accepts deliberately synthetic input:
 
 ```bash
-cargo test -p daemon
+printf '%s\n' 'ghbdtn' | cargo run -p daemon -- test-input
 ```
 
-Build and inspect the Debian package:
+This command prints the test input/result. It does not prove safe live correction in an application. See the [daemon notes](crates/daemon/README.md) before testing live input; `--dry-run` still reads real input devices.
 
-```bash
-./scripts/build-deb.sh
-dpkg-deb -c target/debian/typomorph_*.deb
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow and validation. No tests or live input experiments were run as part of the discovery/documentation update.
 
-## Repository Layout
+## Distribution and verification status
 
-```text
-TypoMorph/
-├── .github/workflows/     # CI (fmt/clippy/test/audit) and tagged-release automation
-├── crates/
-│   ├── core-engine/       # Portable classifier, layout correction, prompt detector/improver
-│   ├── daemon/            # typomorph CLI, runtime orchestration, packaging
-│   ├── licensing/         # Offline/online Pro entitlement state
-│   ├── platform-linux/    # evdev, uinput, and GNOME Shell integration
-│   ├── prompt-cloud/      # BYOK / managed cloud prompt-improvement client
-│   └── native-host/       # Native Messaging host for the browser extensions
-├── extensions/            # Chrome/Edge and Firefox browser extensions (unpublished)
-├── docs/                  # Product specification, architecture, and roadmap
-├── landing/               # Static download and product landing page
-├── scripts/               # Release and Debian packaging helpers
-├── SECURITY.md
-├── CONTRIBUTING.md
-├── Cargo.toml
-└── LICENSE
-```
+The existing [release workflow](.github/workflows/release.yml) builds a Debian package and is configured to sign its checksum file using cosign. This describes workflow configuration, not verification of any downloaded artifact. The existing installer checks checksums; it is not the approved fail-closed signed updater.
 
-## License
+The target release uses direct website downloads: `.deb`, a signed Windows installer, and a signed/notarized macOS application in `.dmg`. Stores and additional repositories are deferred. Browser extensions are conditional on demonstrated need and owner approval; Safari's extension is deferred.
 
-The repository currently contains a proprietary license notice in [LICENSE](LICENSE). The README intentionally reflects that legal status rather than claiming MIT or Apache-2.0 licensing. If the project is formally relicensed under MIT, Apache-2.0, or both, update the license file and badges together.
+The [landing page](landing/index.html) still contains obsolete free/Pro pricing and a Lemon Squeezy link. It has not been updated or published during this documentation-only phase. Existing Windows/macOS download placeholders are not evidence of native application support.
 
-## Status
+## Source license
 
-TypoMorph is under active development. The Linux Phase 2 path, daemon CLI, interactive simulation, Debian packaging, udev rules, systemd user service, and static release landing page are implemented. macOS and Windows download artifacts remain release placeholders until their native adapters are available.
+The repository retains its existing [proprietary license notice](LICENSE). It was not replaced with an open-source license or new customer agreement during discovery. [LICENSING.md](docs/LICENSING.md) records approved commercial product requirements, not a finalized EULA or a grant of source-code rights.

@@ -1,50 +1,51 @@
-# ROLE & OBJECTIVE
-You are a Principal Systems Architect, Rust Systems Engineer, and Commercial Software Strategist.
-We are building a commercial, ultra-low-latency (<1ms), cross-platform intelligent input utility (layout switcher & auto-correction engine) named "TypoMorph" running natively on macOS, Windows, and Linux (Ubuntu X11/Wayland).
+# TypoMorph project handoff
 
-We operate strictly under the Spec-Kit / Spec-Driven Development (SDD) framework.
-Do NOT output application code yet. First, produce the complete Product Specification and Architecture blueprints.
+## Role and source of truth
 
----
+Act as a principal software engineer and product architecture partner for the existing TypoMorph repository. The Product Owner makes product decisions.
 
-### 1. GLOBAL MARKET REVENUE & MONETIZATION
-- Target Markets: Global knowledge workers, developers, multilingual writers, enterprises (B2C Pro licenses + B2B team seats).
-- Revenue Model:
-  - Free Core: Fast 2-language heuristic auto-switching.
-  - Pro Tier ($39 lifetime or $4/month): Unlimited language packs, developer IDE mode (auto-disables inside code blocks / strings), cloud sync of custom dictionaries, smart clipboard history.
-  - Enterprise Tier: Zero-Keystroke Retention guarantee, SOC2/GDPR compliance, fleet deployment policies via MDM / Group Policy.
+Read [README.md](README.md), [SPEC.md](docs/SPEC.md), [DECISIONS.md](docs/DECISIONS.md), and [OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md). Inspect the local Git state before acting. Local files and newer explicit owner decisions take precedence over older remote documentation and historical prompts.
 
----
+## Approval state
 
-### 2. MULTI-TIER LANGUAGE ENGINE (GLOBAL COVERAGE)
-The core engine must support modular plug-and-play language packs:
-1. Tier 1 (Direct Alphabetic Matrix):
-   - English (US/UK), Russian, Spanish, Portuguese (BR/PT), German, French, Italian, Ukrainian.
-   - Dual-layer classifier: Laplace-smoothed bigram/trigram log-probabilities + Illegal Sequence Hard-Filter Trie.
-2. Tier 2 (IME-Aware Hybrid Routing):
-   - Simplified Chinese (Pinyin), Japanese (Romaji), Hindi (ITRANS/InScript), Bengali.
-   - Smart IME Passthrough: Detection of Pinyin/Indic phonetics versus English plain text without breaking native OS Composition Windows.
+- Product discovery and its final review were approved on 2026-09-24.
+- Updating the project documentation is authorized.
+- The updated documentation must be reviewed by the owner.
+- Only after documentation approval should a detailed implementation plan be proposed.
+- Application code changes require explicit approval of that implementation plan.
+- Do not infer authorization to fix bugs, refactor, change deployment configuration, publish, or commit from documentation approval.
+- The roadmap describes proposed stages; it is not an approved implementation plan.
+- Continue to record unresolved details rather than inventing decisions or weakening safety requirements.
 
----
+## Approved product baseline
 
-### 3. CROSS-PLATFORM SYSTEM ABSTRACTIONS
-- Core (Rust):
-  - Ring buffer (ephemeral, 32 tokens max, zero heap allocations on keystroke).
-  - Fast probabilistic language scorer with confidence threshold delta.
-- Platform Input Hooks & Synthetic Emitters:
-  - macOS: CGEventTap / IOHidManager + Carbon TIS (Text Input Source) switching + Accessibility API.
-  - Windows: Low-Level Keyboard Hook (`SetWindowsHookExW`), `SendInput` API, and `PostMessage` WM_INPUTLANGCHANGEREQUEST.
-  - Linux: Kernel-level `/dev/input/event*` via `evdev` + injection via `/dev/uinput` + GNOME Shell D-Bus / Fcitx / IBus switcher (Wayland and X11 support via non-root udev rules).
-- Antivirus & Privacy Hardening:
-  - RAM-only volatile buffer. Zero disk logging.
-  - Clear architectural posture against keylogger heuristics (EV Code Signing, Apple Notarization compatibility).
+TypoMorph corrects wrong keyboard layouts for ordinary multilingual users. It is not an AI prompt tool or spelling corrector.
 
----
+First public release: all six approved languages (EN/RU/UA/DE/FR/ES), their selected OS-specific layouts, Ubuntu LTS GNOME Wayland/X11, Windows 11 x86-64, and macOS Intel/Apple Silicon. Exact OS versions and layout identifiers need verification. Chrome/Edge/Firefox extensions are conditional; Safari extension, Enterprise, additional OS environments, and additional languages are deferred.
 
-### 4. SPEC-KIT DELIVERABLES REQUIRED
-Generate the following formal documents in Markdown:
-1. `SPEC.md`: Detailed functional, non-functional requirements, edge-case matrices, and error recovery state machine.
-2. `ARCHITECTURE.md`: Cargo workspace topology (`core-engine`, `lang-packs`, `platform-macos`, `platform-windows`, `platform-linux`, `daemon`), memory layout, and IME routing logic.
-3. `ROADMAP.md`: Phased execution plan from synthetic benchmarks to OS-specific bindings and GUI/tray integration.
+Correct during word entry when confidence is sufficient. Never switch merely because the detected language differs from the layout's label. Preserve genuine input, abstain if uncertain, support manual correction and safe undo. Protected or unknown-safety fields must not be buffered or corrected. User preferences do not override that boundary.
 
-Begin by outputting the comprehensive `SPEC.md`.GEMINI
+Release input is transient RAM-only, never transmitted or logged. No automatic telemetry or crash uploads. No clipboard fallback for selection access. Ordinary user privileges only.
+
+Commerce: a verified-email account without a password; seven trial days shared across up to three devices; USD 7/year with explicit enrollment and automatic renewal, or USD 19 once with perpetual use and all future released updates. Applicable taxes are included. No permanent free tier. Stripe is selected; the existing Lemon Squeezy code is legacy. See [LICENSING.md](docs/LICENSING.md) for offline access, refunds, grace periods, and transfers.
+
+There is no fixed release date. Work efficiently without bypassing safety, compatibility, beta, or approval gates.
+
+## Evidence discipline
+
+Clearly distinguish:
+
+1. approved product requirements;
+2. observed source behavior;
+3. user-reported bugs not yet reproduced;
+4. proposed implementation choices and unresolved questions.
+
+The current diagnostic daemon logs input, implements limited US/RU conversion, and is reported not to correct text on the owner's Linux machine. Do not claim privacy compliance or cross-platform readiness merely because the target requirements say so.
+
+Do not carry forward obsolete free-language limits, cloud-prompt monetization, prices, Enterprise commitments, or sub-millisecond end-to-end replacement promises. Their replacements are documented in [DECISIONS.md](docs/DECISIONS.md).
+
+## Communication and files
+
+Communicate with the owner in Russian. Keep source identifiers, comments, commit messages, specifications, architecture documents, and technical documentation in English. The product UI itself has six approved localization languages.
+
+If discovery needs to resume, ask one question at a time, explain the trade-off, identify the recommended choice when appropriate, and wait for the answer. Restate each decision and explicitly identify any superseded requirement.

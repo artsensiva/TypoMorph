@@ -1,56 +1,56 @@
 # Contributing to TypoMorph
 
+## Approval and scope
+
+Read [SPEC.md](docs/SPEC.md), [DECISIONS.md](docs/DECISIONS.md), and [OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md). Requirements are approved; revised documentation is awaiting owner review. A detailed implementation plan and its separate approval must precede application changes.
+
+Do not use a documentation task as authorization to refactor, fix BUG-001, change deployment or legal terms, publish, or commit. Inspect Git state and preserve unrelated changes.
+
 ## Development setup
 
-Requirements: Rust stable (2021 edition), Linux with `evdev`/`/dev/uinput` for the live daemon path (not required for `core-engine`, `licensing`, `prompt-cloud`, or `native-host`, which have no Linux-specific dependencies), and `libdbus-1-dev` + `pkg-config` to build the `daemon` crate (needed by its `ksni` tray dependency).
+The current full workspace targets Linux. It uses Rust 2021, with `libdbus-1-dev` and `pkg-config` needed for the daemon's tray dependency. Live capture/replacement uses evdev/uinput; that path is not a portable platform abstraction.
 
 ```bash
-sudo apt-get install -y libdbus-1-dev pkg-config
 cargo build --workspace
-cargo test --workspace
-```
-
-## Before opening a PR
-
-Run the same checks CI runs (`.github/workflows/ci.yml`):
-
-```bash
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-All three must pass with zero warnings. `cargo-audit` also runs in CI against `Cargo.lock` on every PR — if it flags a new advisory in a dependency you didn't touch, mention it in the PR rather than silently ignoring it.
+These are existing development commands, not commands executed during documentation work. See [TESTING.md](docs/TESTING.md) for evidence requirements. The current CI also runs a dependency audit against Cargo.lock.
 
-## Code style
+Device-free checks can use synthetic input through [test-input](crates/daemon/README.md). Live `--dry-run` still reads devices. Current stderr diagnostics can contain text; do not run live checks on personal input or upload captured logs.
 
-- No comments explaining *what* code does — only *why*, when the reason isn't obvious from the code itself (a workaround, a non-obvious invariant, a hidden constraint).
-- Prefer small, focused functions and pure logic in `core-engine` over anything Linux- or I/O-specific; if a piece of logic needs no `evdev`/`uinput`/D-Bus/network access, it belongs in `core-engine` (or `prompt-cloud` if it's cloud-client logic), not `daemon` or `native-host`, so both the daemon and the browser-extension host can share it.
-- Match the existing test style: `#[cfg(test)] mod tests` at the bottom of the file, descriptive test names as full sentences (e.g. `hindi_text_is_detected_but_not_auto_corrected_regardless_of_current_layout`), and mock external transports (see `licensing::LicenseTransport` / `prompt_cloud::CloudTransport`) instead of making real network calls in tests.
-- Don't add a language-, tier-, or feature-gate without also adding a test that exercises the boundary (see `crates/core-engine/src/layout.rs`'s tests for the pattern).
+## Implementation conventions after approval
 
-## Commit messages
+- Keep technical documentation, source identifiers, comments, and commit messages in English; user-facing strings follow the six-language UI requirement.
+- Keep pure classification/mapping logic separate from OS integration and input persistence/networking.
+- Explain non-obvious constraints and decisions in comments; prefer small, focused changes.
+- Use synthetic fixtures and mocked transports for meaningful boundary and regression tests; no real credentials or payment operations in tests.
+- Treat selected-layout mapping, protected/unknown fields, composition, races, and undo as explicit correctness boundaries.
+- Preserve genuine input and fail safely when capabilities or context are uncertain.
+- Keep release input out of logs, files, reports, and network requests. Development-only text diagnostics require an explicit separate boundary.
+- Do not reintroduce obsolete AI, Free/Pro language gates, Enterprise scope, or periodic perpetual-license checks.
+- Record evidence and uncertainty; a build or unit test is not proof of native application compatibility.
 
-Short, imperative, and focused on *why* rather than *what* (the diff already shows what changed). No fixed prefix convention is enforced, but keep one logical change per commit.
+Existing test modules are commonly colocated with their code. Follow the surrounding style where appropriate; choose tests that exercise meaningful behavior rather than duplicating implementation.
 
-## Release checklist
+## Validation and changes
 
-Tagging `vX.Y.Z` triggers `.github/workflows/release.yml`, which builds and publishes the `.deb` — but two things are **not** automated and must be done manually, in this order, before pushing the tag:
+Run checks appropriate to the authorized change and the CI requirements. For application changes, record focused regression and relevant real-platform evidence. For documentation-only changes, validate links, consistency, and scope without presenting that as runtime validation.
 
-1. **Bump `version` in `crates/daemon/Cargo.toml` to match the tag** (e.g. tag `v0.2.0` → version `0.2.0`). `cargo-deb` names the package after this version, not the git tag — if they drift, the release workflow publishes a `.deb` whose filename `landing/install.sh` never looked for, and the one-line installer 404s for everyone. Run `cargo check -p daemon` afterward so `Cargo.lock` picks up the bump.
-2. **Update the download link in `landing/index.html`** (`href="downloads/typomorph_<version>-1_amd64.deb"` in the Linux download panel) to match the new version. Unlike `landing/install.sh` (which resolves the real asset name from the GitHub Releases API at install time and can't drift), this is a static link and must be updated by hand every release.
+Describe the concrete problem, resulting behavior, validation, and remaining limitations in a PR. Keep commits focused when committing is authorized.
 
-If you tag without doing both, `landing/install.sh` still works (it always asks the GitHub API for the real filename) — but the landing page's direct "Download .deb" button will point at a 404 until `landing/index.html` is fixed and manually re-uploaded (see `scripts/deploy-production.sh`).
+## Release preparation
 
-## Reporting bugs and requesting features
+Release work requires the later approved plan and verified readiness. The current Debian workflow uses the daemon package version; ensure any future release tag, Cargo version/lockfile, package name, website link, and actual artifact agree.
 
-Open a GitHub issue. For security vulnerabilities, see [SECURITY.md](SECURITY.md) instead — do not file a public issue.
+The landing page still has historical pricing/provider/platform claims. Its changes are outside the present documentation phase. Never infer a valid Windows/macOS package from a placeholder link.
 
-## Browser extensions
+Before publication, complete the [roadmap gates](docs/ROADMAP.md), validate actual package signatures and update behavior, and align public terms and privacy claims with demonstrated behavior. Stores and additional repositories are deferred.
 
-Changes under `extensions/` should still pass `extensions/build.sh` (produces the zips CI/reviewers would load) and should be manually tested via "load unpacked" (see `extensions/README.md`) before submission — there is no automated browser test suite in this repository yet.
+## Bugs, security, and browser code
 
-## What not to submit
+Record expected/actual behavior, synthetic reproduction, exact environment/build, severity, frequency, and evidence status. See [BUGS.md](docs/BUGS.md). Security reports follow [SECURITY.md](SECURITY.md), not a public issue containing sensitive data.
 
-- Do not commit real API keys, license keys, or credentials anywhere, including in tests or fixtures.
-- Do not add telemetry, analytics, or any network call to layout correction — it's a core project commitment that this path stays fully local and free. Network calls belong only in the already-explicit, opt-in cloud prompt-improvement path (`prompt-cloud`, gated by `--cloud`).
+Browser extensions are conditional for the first release. Existing packaging and source status are documented in [extensions/README.md](extensions/README.md); neither packaging nor manual loading authorizes store publication.
