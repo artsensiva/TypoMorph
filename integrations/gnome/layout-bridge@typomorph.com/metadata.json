@@ -1,0 +1,9 @@
+{
+  "uuid": "layout-bridge@typomorph.com",
+  "name": "TypoMorph Layout Bridge",
+  "description": "Local layout identity and acknowledged switching for the TypoMorph prototype.",
+  "shell-version": [
+    "50"
+  ],
+  "version": 1
+}

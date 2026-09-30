@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+pub mod context;
 pub mod layout;
-pub mod prompt_detector;
-pub mod prompt_improver;
+pub mod replacement;
 
 pub const RING_BUFFER_CAPACITY: usize = 32;
 
@@ -24,9 +24,16 @@ pub enum Language {
     Hindi,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Token {
     ch: char,
+}
+
+// Input-bearing types must remain safe when embedded in derived diagnostics.
+impl std::fmt::Debug for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Token { ch: <redacted> }")
+    }
 }
 
 impl Token {
@@ -39,11 +46,20 @@ impl Token {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RingBuffer<const N: usize> {
     data: [Option<char>; N],
     len: usize,
     head: usize,
+}
+
+impl<const N: usize> std::fmt::Debug for RingBuffer<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RingBuffer")
+            .field("capacity", &N)
+            .field("len", &self.len)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<const N: usize> RingBuffer<N> {
@@ -1123,5 +1139,49 @@ mod tests {
             buffer.push(ch);
         }
         assert_eq!(classifier.classify_buffer(&buffer), Language::Hindi);
+    }
+}
+
+#[cfg(test)]
+mod input_debug_privacy_tests {
+    use super::{RingBuffer, Token};
+
+    #[test]
+    fn token_debug_never_formats_the_character() {
+        for ch in ['Q', 'Ж', '\n', '\0', '🔑'] {
+            assert_eq!(format!("{:?}", Token::new(ch)), "Token { ch: <redacted> }");
+            assert_eq!(format!("{:#?}", Token::new(ch)), "Token { ch: <redacted> }");
+            assert_eq!(Token::new(ch).ch(), ch);
+        }
+    }
+
+    #[test]
+    fn nested_debug_does_not_disclose_current_or_overwritten_input() {
+        #[derive(Debug)]
+        struct Diagnostic {
+            _input: RingBuffer<4>,
+            _token: Token,
+        }
+        let mut buffer = RingBuffer::<4>::new();
+        for ch in "SECRETжук!".chars() {
+            buffer.push(ch);
+        }
+        assert_eq!(buffer.as_string(), "жук!");
+        assert_eq!(
+            format!("{buffer:?}"),
+            "RingBuffer { capacity: 4, len: 4, .. }"
+        );
+        let diagnostic = Diagnostic {
+            _input: buffer,
+            _token: Token::new('Ж'),
+        };
+        for output in [format!("{diagnostic:?}"), format!("{diagnostic:#?}")] {
+            for forbidden in ["SECRET", "жук!", "Ж", "Some(", "data:"] {
+                assert!(
+                    !output.contains(forbidden),
+                    "input-bearing diagnostic output"
+                );
+            }
+        }
     }
 }

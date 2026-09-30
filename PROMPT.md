@@ -10,11 +10,11 @@ Read [README.md](README.md), [SPEC.md](docs/SPEC.md), [DECISIONS.md](docs/DECISI
 
 - Product discovery and its final review were approved on 2026-09-24.
 - Updating the project documentation is authorized.
-- The updated documentation must be reviewed by the owner.
-- Only after documentation approval should a detailed implementation plan be proposed.
-- Application code changes require explicit approval of that implementation plan.
+- The owner approved the updated documentation; it was committed as `e42e77c`.
+- The owner approved [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md); P0 is in progress.
+- Local application changes and controlled validation within the approved plan are authorized.
 - Do not infer authorization to fix bugs, refactor, change deployment configuration, publish, or commit from documentation approval.
-- The roadmap describes proposed stages; it is not an approved implementation plan.
+- Follow the approved detailed plan; the roadmap is its high-level summary.
 - Continue to record unresolved details rather than inventing decisions or weakening safety requirements.
 
 ## Approved product baseline
@@ -40,7 +40,7 @@ Clearly distinguish:
 3. user-reported bugs not yet reproduced;
 4. proposed implementation choices and unresolved questions.
 
-The current diagnostic daemon logs input, implements limited US/RU conversion, and is reported not to correct text on the owner's Linux machine. Do not claim privacy compliance or cross-platform readiness merely because the target requirements say so.
+The installed diagnostic daemon logs input and implements limited US/RU conversion. P0 removes live input logging in the working copy; the reported Linux correction failure remains open. Do not claim privacy compliance or cross-platform readiness merely because the target requirements say so.
 
 Do not carry forward obsolete free-language limits, cloud-prompt monetization, prices, Enterprise commitments, or sub-millisecond end-to-end replacement promises. Their replacements are documented in [DECISIONS.md](docs/DECISIONS.md).
 
@@ -49,3 +49,5 @@ Do not carry forward obsolete free-language limits, cloud-prompt monetization, p
 Communicate with the owner in Russian. Keep source identifiers, comments, commit messages, specifications, architecture documents, and technical documentation in English. The product UI itself has six approved localization languages.
 
 If discovery needs to resume, ask one question at a time, explain the trade-off, identify the recommended choice when appropriate, and wait for the answer. Restate each decision and explicitly identify any superseded requirement.
+
+Present next actions as numbered choices (including a single numbered next step when appropriate), and explain the recommended option when there is a meaningful choice. The owner may select the next action by number.

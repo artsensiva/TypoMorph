@@ -1,6 +1,6 @@
 # Privacy requirements and data boundaries
 
-Status: approved product policy transcribed for documentation review, 2026-09-24.
+Status: product policy and documentation approved, 2026-09-24.
 This is an engineering/product policy, not a completed public privacy notice. The current prototype does not yet comply.
 
 ## 1. Input boundary
@@ -59,9 +59,9 @@ Do not include field contents, window/document titles containing personal text, 
 
 ## 5. Current prototype discrepancies
 
-The inspected diagnostic daemon prints characters, analyzed buffers, and locally improved prompt content through stderr. Systemd may retain that output. Legacy CLI and browser cloud-prompt paths can send deliberately supplied text to remote endpoints.
+The diagnostic daemon inspected at discovery printed characters, analyzed buffers, and locally improved prompt content through stderr. P0 removes these live-path outputs in the working copy; the installed binary is unchanged. Systemd may retain that output. As of 2026-09-28, the working build removes legacy CLI and browser cloud-prompt paths. The cloud crate is excluded from the workspace; historical source remains uncompiled.
 
-These are observed source behaviors, not the approved release policy. The documentation change does not remove them. See [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](../SECURITY.md), and [BUGS.md](BUGS.md).
+These historical behaviors are not the approved release policy. Current extensions request no page access, and their host refuses correction. Capture queues are now bounded and readers are joined on diagnostic pause. Token/buffer/decision/raw-event Debug formatting is redacted. Persistent preferences contain no input or credentials. These controls are tested in isolation; general protected-field safety and production integration remain unresolved. See [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](../SECURITY.md), and [BUGS.md](BUGS.md).
 
 ## 6. Verification
 

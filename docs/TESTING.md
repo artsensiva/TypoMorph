@@ -13,6 +13,10 @@ Use deliberately synthetic non-sensitive text. Do not collect personal typing hi
 
 ## 2. Existing automated entry points
 
+For the owner's Ubuntu 26.04.1 / Wayland and proposed Windows 10 Home checks,
+see [local machine testing](LOCAL_MACHINE_TESTING.md). It separates device-free
+tests from unavailable production autocorrection and experimental OS coverage.
+
 The current Linux-oriented workspace has these standard commands:
 
 ```bash
@@ -111,3 +115,9 @@ Closed beta is mandatory after the concrete compatibility matrix and numeric qua
 Release requires resolved BUG-001, required matrix coverage, passing checks and measured targets, no known blocking safety/privacy/integrity/authenticity defects, validated commerce, and public claims aligned with evidence. See [SPEC.md](SPEC.md) and [ROADMAP.md](ROADMAP.md).
 
 Documentation checks may validate Markdown links, consistency, and edit scope. They must never be reported as application test success.
+
+## Latest implementation evidence
+
+See [PROJECT_STATE.md](PROJECT_STATE.md) for the 2026-09-28 workspace, private-bus,
+release-profile and mocked installer results. These supplement, and do not replace,
+the native safety failures and required cross-platform release matrix above.

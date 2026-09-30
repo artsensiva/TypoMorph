@@ -1,6 +1,6 @@
 # Product discovery decision log
 
-Status: final product baseline approved; documentation transcription awaiting review.
+Status: product baseline, documentation, and implementation plan approved.
 Recorded: 2026-09-24.
 
 This log consolidates the final choices from discovery. It does not reconstruct timestamps or option numbers for every interview answer. Later explicit owner decisions replace earlier proposals. Product rules live in [SPEC.md](SPEC.md); implementation observations do not override them.
@@ -10,7 +10,7 @@ This log consolidates the final choices from discovery. It does not reconstruct 
 | ID | Decision | Consequence |
 | --- | --- | --- |
 | D-01 | Local wrong-layout correction for ordinary multilingual writing | No spelling, translation, or general writing assistant |
-| D-02 | Exclude local/cloud AI prompt improvement | Existing prompt features are legacy and need later implementation work to remove from the release |
+| D-02 | Exclude local/cloud AI prompt improvement | AI entry points removed from the working build on 2026-09-28; historical sources excluded |
 | D-03 | Release text stays in bounded transient RAM; no input logs, transmission, telemetry, or automatic crash uploads | Local settings and account/payment metadata are separate from typed content |
 | D-04 | Development-only local text diagnostics allowed when necessary | Explicit development controls and synthetic input; no permission to capture personal typing during documentation work |
 | D-05 | Six first-release input and UI languages: English, Russian, Ukrainian, German, French, Spanish | Exact supported variants and directions need validation; all six are required at public release |
@@ -64,7 +64,7 @@ No accountless trial, new trial per device, restricted perpetual update window, 
 | Evidence | Historical/current content | Resolution or remaining gap |
 | --- | --- | --- |
 | Root README, PROMPT, SPEC, SECURITY, CONTRIBUTING | Inconsistent free-language/free-core promises and Pro/Enterprise positioning | Replaced by trial plus equal-feature annual/perpetual access in these documents |
-| README and other product docs | AI/local/cloud prompt improvement as a product feature | Excluded; source remains unchanged pending implementation approval |
+| README and other product docs | AI/local/cloud prompt improvement as a product feature | Removed from the working build; historical sources remain excluded |
 | Commercial docs and landing page | Old prices, tier boundaries, and provider | Docs now use USD 7/19 and Stripe; HTML still needs a separately authorized update |
 | Earlier architecture/roadmap | Future platform/common/language-pack crates represented as architecture | Current workspace documented accurately; future topology remains undecided |
 | Performance claims | Universal sub-millisecond/zero-allocation statements | Replaced with an unmeasured first-release target and explicit benchmark work |
@@ -73,8 +73,8 @@ No accountless trial, new trial per device, restricted perpetual update window, 
 | Current live diagnostics | Characters and buffers printed to stderr | Violates release privacy target; not removed in documentation phase |
 | Current filtering/pause/context logic | No demonstrated complete protected-field, composition, persistent-pause, or stale-context safety | Safety is required for everyone; implementation/validation still needed |
 | Current Linux capture/replacement | Suppresses delivery to analysis during switching/emission | Needs race/integrity investigation; not proof of the reported bug's root cause |
-| Current licensing | Lemon Squeezy and locally checksummed metadata; no approved account/trial lifecycle | Stripe service and authenticated offline entitlement design remain future work |
-| Existing browser host/extensions | Independent host, legacy prompt actions, Free/Pro controls, placeholder extension IDs | Conditional inclusion; lifecycle, safety, and correction ownership need design |
+| Licensing | Legacy Lemon Squeezy/checksum implementation removed | Ed25519 verifier implemented; account/Stripe/activation integration still pending |
+| Browser host/extensions | Now readiness-only; prompt actions and page access removed | Conditional inclusion; lifecycle, field safety, and correction ownership still incomplete |
 | Current platform tree and public placeholders | Linux prototype; Windows/macOS not implemented | Required first-release targets, not existing supported products |
 | Landing installer/release automation | Existing checksum flow and Debian signing configuration | Not evidence that the approved verified updater exists or an artifact has been checked |
 | Source comments and identifiers | Some historical non-English comments | English remains the engineering-language rule; do not change code during this phase |
@@ -87,4 +87,4 @@ The source, HTML, configuration, legal notice, and deployment state are intentio
 
 The only user-reported runtime defect is [BUG-001](BUGS.md), still independently unreproduced. Source inspection identified additional gaps; no live input was captured, no runtime test was executed, and no fix was attempted.
 
-The requirements affect the decision engine, all OS integrations, field safety and replacement/undo, GUI, privacy boundaries, commerce service/client, packaging/updating, and release validation. [ROADMAP.md](ROADMAP.md) gives proposed stages only. Detailed technology choices and estimates follow documentation approval.
+The requirements affect the decision engine, all OS integrations, field safety and replacement/undo, GUI, privacy boundaries, commerce service/client, packaging/updating, and release validation. [ROADMAP.md](ROADMAP.md) gives proposed stages only. [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) now defines proposed work packages and the remaining technical decision gates.

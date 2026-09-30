@@ -1,6 +1,6 @@
 # TypoMorph product specification
 
-Status: approved product baseline transcribed for documentation review.
+Status: product baseline and documentation approved.
 Decision basis: owner-approved discovery review, 2026-09-24.
 This specification describes the first public release, not the capabilities of the current prototype.
 
@@ -196,4 +196,4 @@ Release requires:
 6. Validated commerce/offline access, packaging, UI localization, and consent flows.
 7. Public claims, checkout, privacy notice, and customer terms aligned with demonstrated behavior.
 
-Product requirements were approved. These documents still need owner review. Only after documentation approval may a detailed implementation plan be proposed; only after its separate approval may application code change.
+Product requirements and documentation were approved. The [implementation plan](IMPLEMENTATION_PLAN.md) has also been approved; local implementation and controlled validation within its scope are authorized.

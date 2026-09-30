@@ -1,0 +1,691 @@
+diff --git a/src/editor-page.c b/src/editor-page.c
+--- a/src/editor-page.c
++++ b/src/editor-page.c
+@@ -380,6 +380,10 @@
+ 
+       gtk_text_view_set_buffer (GTK_TEXT_VIEW (self->view),
+                                 GTK_TEXT_BUFFER (document));
++#ifdef TYPOMORPH_EXPERIMENT
++      self->typomorph_owner = editor_typomorph_owner_new (document, GTK_SOURCE_VIEW (self->view));
++#endif
++
+ 
+       g_signal_connect_object (document,
+                                "notify::loading",
+@@ -740,6 +744,10 @@
+ {
+   EditorPage *self = (EditorPage *)object;
+ 
++#ifdef TYPOMORPH_EXPERIMENT
++  g_clear_pointer (&self->typomorph_owner, editor_typomorph_owner_free);
++#endif
++
+   g_clear_handle_id (&self->queued_hide_position, g_source_remove);
+ 
+   if (self->document != NULL)
+@@ -849,11 +857,44 @@
+     }
+ }
+ 
++#ifdef TYPOMORPH_EXPERIMENT
++static void
++editor_page_typomorph_probe (GtkWidget *widget,
++                             const char *action_name,
++                             GVariant *parameter)
++{
++  EditorPage *self = EDITOR_PAGE (widget);
++  (void) action_name;
++  editor_typomorph_owner_probe (self->typomorph_owner,
++                                g_variant_get_string (parameter, NULL));
++}
++#endif
++
++#ifdef TYPOMORPH_EXPERIMENT
++static void
++editor_page_typomorph_check (GtkWidget *widget,
++                            const char *action_name,
++                            GVariant *parameter)
++{
++  EditorPage *self = EDITOR_PAGE (widget);
++  (void) action_name;
++  editor_typomorph_owner_check (self->typomorph_owner,
++                               g_variant_get_string (parameter, NULL));
++}
++#endif
++
+ static void
+ editor_page_class_init (EditorPageClass *klass)
+ {
+   GObjectClass *object_class = G_OBJECT_CLASS (klass);
+   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
++
++#ifdef TYPOMORPH_EXPERIMENT
++  gtk_widget_class_install_action (widget_class, "typomorph.probe", "s",
++                                    editor_page_typomorph_probe);
++  gtk_widget_class_install_action (widget_class, "typomorph.check", "s",
++                                  editor_page_typomorph_check);
++#endif
+ 
+   object_class->constructed = editor_page_constructed;
+   object_class->dispose = editor_page_dispose;
+@@ -1552,6 +1593,10 @@
+ {
+   g_return_if_fail (EDITOR_IS_PAGE (self));
+ 
++#ifdef TYPOMORPH_EXPERIMENT
++  editor_typomorph_owner_invalidate (self->typomorph_owner);
++#endif
++
+   if (search_visible)
+     {
+       _editor_search_bar_set_mode (self->search_bar, mode);
+diff --git a/src/editor-page-private.h b/src/editor-page-private.h
+--- a/src/editor-page-private.h
++++ b/src/editor-page-private.h
+@@ -33,6 +33,10 @@
+ #include "editor-utils-private.h"
+ #include "editor-window.h"
+ 
++#ifdef TYPOMORPH_EXPERIMENT
++#include "editor-typomorph-owner.h"
++#endif
++
+ G_BEGIN_DECLS
+ 
+ struct _EditorPage
+@@ -42,6 +46,9 @@
+   GCancellable            *cancellable;
+ 
+   EditorDocument          *document;
++#ifdef TYPOMORPH_EXPERIMENT
++  EditorTypomorphOwner     *typomorph_owner;
++#endif
+   EditorPageSettings      *settings;
+   GBindingGroup           *settings_bindings;
+ 
+diff --git a/src/meson.build b/src/meson.build
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -106,6 +106,14 @@
+ endif
+ 
+ editor_c_args = []
++if get_option('typomorph_experiment')
++  if not get_option('development')
++    error('typomorph_experiment requires development=true')
++  endif
++  editor_sources += ['editor-typomorph-owner.c']
++  editor_c_args += ['-DTYPOMORPH_EXPERIMENT=1']
++endif
++
+ 
+ subdir('defaults')
+ subdir('modelines')
+diff --git a/meson_options.txt b/meson_options.txt
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -1,3 +1,5 @@
+ option('development', type: 'boolean', value: false, description: 'If this is a development build')
+ option('editorconfig', type: 'feature', value: 'enabled', description: 'Use editorconfig for file settings')
+ option('bugreport_url', type: 'string', value: 'https://gitlab.gnome.org/GNOME/gnome-text-editor/issues', description: 'URL to report issues. Distributions packaging Text Editor are encouraged to set this to their bugtracker.')
++
++option('typomorph_experiment', type: 'boolean', value: false, description: 'Private synthetic TypoMorph diagnostic; never production')
+diff --git a/src/editor-typomorph-owner.h b/src/editor-typomorph-owner.h
+new file mode 100644
+--- /dev/null
++++ b/src/editor-typomorph-owner.h
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#pragma once
++#include "editor-document-private.h"
++#include <gtksourceview/gtksource.h>
++
++typedef struct _EditorTypomorphOwner EditorTypomorphOwner;
++EditorTypomorphOwner *editor_typomorph_owner_new (EditorDocument *document,
++                                                 GtkSourceView *view);
++void editor_typomorph_owner_invalidate (EditorTypomorphOwner *self);
++void editor_typomorph_owner_free (EditorTypomorphOwner *self);
++void editor_typomorph_owner_probe (EditorTypomorphOwner *self, const char *mode);
++void editor_typomorph_owner_check (EditorTypomorphOwner *self, const char *mode);
++/* No supported automatic-edit or targeted-undo capability is advertised. */
+diff --git a/src/editor-typomorph-owner.c b/src/editor-typomorph-owner.c
+new file mode 100644
+--- /dev/null
++++ b/src/editor-typomorph-owner.c
+@@ -0,0 +1,536 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later
++ * Development-only fixed-input range experiment. Not a production adapter.
++ */
++#include "config.h"
++#include <string.h>
++#include "editor-typomorph-owner.h"
++
++struct _EditorTypomorphOwner
++{
++  EditorDocument *document;
++  GtkSourceView *view;
++  GtkWindow *window;
++  guint refs;
++  gboolean detached;
++  guint timer;
++  guint harness_timer, harness_phase;
++  gboolean harness_ready;
++  gint64 harness_deadline;
++  guint64 epoch, revision, request_epoch, request_revision;
++  gint64 deadline;
++  gboolean preedit_seen, applying, faulted, inject;
++  gboolean callback_fired;
++  const char *completed_result; /* Fixed status only, never input content. */
++  gboolean checked;
++  guint64 completed_epoch, completed_revision;
++  enum { CALLBACK_NONE, CALLBACK_BEGIN_EDIT, CALLBACK_DELETE_EDIT } callback_mode;
++};
++
++static void owner_unref (EditorTypomorphOwner *self);
++G_DEFINE_AUTOPTR_CLEANUP_FUNC (EditorTypomorphOwner, owner_unref)
++
++static gboolean
++private_session (void)
++{
++  const char *runtime = g_getenv ("XDG_RUNTIME_DIR");
++  const char *bus = g_getenv ("DBUS_SESSION_BUS_ADDRESS");
++  return g_strcmp0 (g_getenv ("TYPOMORPH_PRIVATE_WAYLAND"), "1") == 0 &&
++         g_strcmp0 (g_getenv ("TYPOMORPH_TEXT_EDITOR_SYNTHETIC"), "1") == 0 &&
++         g_strcmp0 (g_getenv ("WAYLAND_DISPLAY"), "typomorph-test") == 0 &&
++         g_strcmp0 (g_getenv ("GSETTINGS_BACKEND"), "memory") == 0 &&
++         g_getenv ("DISPLAY") == NULL &&
++         runtime != NULL && g_str_has_prefix (runtime, "/tmp/typomorph-wayland-") &&
++         bus != NULL && strstr (bus, runtime) != NULL &&
++         g_strcmp0 (g_getenv ("DBUS_SYSTEM_BUS_ADDRESS"), bus) == 0;
++}
++
++void
++editor_typomorph_owner_invalidate (EditorTypomorphOwner *self)
++{
++  if (self == NULL)
++    return;
++  self->epoch++;
++  if (self->timer != 0)
++    {
++      g_source_remove (self->timer);
++      self->timer = 0;
++      g_print ("typomorph-probe: STALE\n");
++    }
++}
++
++static void
++changed_cb (GtkTextBuffer *buffer, EditorTypomorphOwner *self)
++{
++  (void) buffer;
++  self->revision++;
++  editor_typomorph_owner_invalidate (self);
++}
++
++static void
++mark_cb (GtkTextBuffer *buffer, GtkTextIter *iter, GtkTextMark *mark,
++         EditorTypomorphOwner *self)
++{
++  (void) buffer; (void) iter; (void) mark;
++  editor_typomorph_owner_invalidate (self);
++}
++
++static void
++notify_cb (GObject *object, GParamSpec *pspec, EditorTypomorphOwner *self)
++{
++  /* begin/end-user-action change undo availability without changing field
++   * ownership or content. Real undo/redo still invalidates via changed/marks. */
++  if (object == G_OBJECT (self->document) &&
++      (g_str_equal (pspec->name, "can-undo") || g_str_equal (pspec->name, "can-redo")))
++    return;
++  (void) object; (void) pspec;
++  editor_typomorph_owner_invalidate (self);
++}
++
++static void
++preedit_cb (GtkTextView *view, const char *text, EditorTypomorphOwner *self)
++{
++  (void) view; (void) text; /* Never inspect/copy the preedit payload. */
++  self->preedit_seen = TRUE;
++  editor_typomorph_owner_invalidate (self);
++  /* No trusted composition-end hook established: remain suspended. */
++}
++
++static gboolean
++eligible_metadata (EditorTypomorphOwner *self)
++{
++  GtkTextView *view = GTK_TEXT_VIEW (self->view);
++  GtkTextBuffer *buffer = GTK_TEXT_BUFFER (self->document);
++  GtkRoot *root = gtk_widget_get_root (GTK_WIDGET (view));
++  return private_session () && !self->detached &&
++         !self->preedit_seen && GTK_IS_WINDOW (root) &&
++         gtk_window_is_active (GTK_WINDOW (root)) &&
++         gtk_widget_has_focus (GTK_WIDGET (view)) &&
++         gtk_text_view_get_buffer (view) == buffer &&
++         gtk_text_view_get_editable (view) &&
++         gtk_text_view_get_input_purpose (view) == GTK_INPUT_PURPOSE_FREE_FORM &&
++         !_editor_document_get_loading (self->document) &&
++         !editor_document_get_busy (self->document) &&
++         !_editor_document_did_shutdown (self->document) &&
++         editor_document_get_file (self->document) == NULL &&
++         !gtk_text_buffer_get_has_selection (buffer);
++}
++
++static gboolean
++eligible (EditorTypomorphOwner *self)
++{
++  return !self->faulted && eligible_metadata (self);
++}
++
++static gboolean
++fixed_original (EditorTypomorphOwner *self)
++{
++  GtkTextBuffer *buffer = GTK_TEXT_BUFFER (self->document);
++  GtkTextIter begin, end, caret;
++  g_autofree char *word = NULL;
++  /* Metadata first; read at most six characters of the synthetic document. */
++  if (!eligible (self) || gtk_text_buffer_get_char_count (buffer) != 6)
++    return FALSE;
++  gtk_text_buffer_get_iter_at_mark (buffer, &caret, gtk_text_buffer_get_insert (buffer));
++  if (gtk_text_iter_get_offset (&caret) != 6)
++    return FALSE;
++  gtk_text_buffer_get_bounds (buffer, &begin, &end);
++  word = gtk_text_buffer_get_text (buffer, &begin, &end, TRUE);
++  return g_strcmp0 (word, "ghbdtn") == 0;
++}
++
++/* Scoped connection: remove adversarial callbacks on every completion exit,
++ * including refusal before deletion. The owner keeps the buffer alive. */
++typedef struct
++{
++  GtkTextBuffer *buffer;
++  gulong handler;
++} ProbeConnection;
++
++static void
++probe_connection_clear (ProbeConnection *connection)
++{
++  if (connection->handler != 0 &&
++      g_signal_handler_is_connected (connection->buffer, connection->handler))
++    g_signal_handler_disconnect (connection->buffer, connection->handler);
++}
++G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (ProbeConnection, probe_connection_clear)
++
++static void
++inject_callback_edit (GtkTextBuffer *buffer, EditorTypomorphOwner *self)
++{
++  GtkTextIter position;
++  if (!self->applying || self->callback_fired || self->detached)
++    return;
++  /* Set before insertion: editor callbacks may synchronously reenter. */
++  self->callback_fired = TRUE;
++  gtk_text_buffer_get_end_iter (buffer, &position);
++  gtk_text_buffer_insert (buffer, &position, "x", 1);
++  g_print ("typomorph-probe: CALLBACK_EDIT_INJECTED\n");
++}
++
++static void
++begin_edit_cb (GtkTextBuffer *buffer, EditorTypomorphOwner *self)
++{
++  inject_callback_edit (buffer, self);
++}
++
++static void
++after_delete_edit_cb (GtkTextBuffer *buffer, GtkTextIter *begin,
++                      GtkTextIter *end, EditorTypomorphOwner *self)
++{
++  /* The default deletion has completed. Preserve its returned position, and
++   * revalidate signal iterators after our edit, as GTK's signal contract requires.
++   * Do not inspect or retain deleted text. */
++  gint offset = gtk_text_iter_get_offset (begin);
++  inject_callback_edit (buffer, self);
++  gtk_text_buffer_get_iter_at_offset (buffer, begin, offset);
++  gtk_text_buffer_get_iter_at_offset (buffer, end, offset);
++}
++
++static gboolean
++finish_probe (EditorTypomorphOwner *self, const char *result)
++{
++  self->completed_result = result;
++  self->completed_epoch = self->epoch;
++  self->completed_revision = self->revision;
++  g_print ("typomorph-probe: %s\n", result);
++  return G_SOURCE_REMOVE;
++}
++
++static gboolean
++complete_cb (gpointer data)
++{
++  g_autoptr(EditorTypomorphOwner) self = data;
++  GtkTextBuffer *buffer = GTK_TEXT_BUFFER (self->document);
++  GtkTextIter begin, end;
++  guint64 before;
++  g_auto(ProbeConnection) callback = { buffer, 0 };
++  self->refs++; /* Survive page disposal from a synchronous editor callback. */
++  self->timer = 0;
++  if (g_get_monotonic_time () >= self->deadline ||
++      self->epoch != self->request_epoch || self->revision != self->request_revision ||
++      !fixed_original (self))
++    {
++      g_print ("typomorph-diagnostic: BEFORE_MUTATION_REFUSED\n");
++      return finish_probe (self, "REFUSED");
++    }
++  /* Deliberately diagnostic, NOT the proposed atomic owner_complete API.
++   * Actual document callbacks remain installed. A failed invariant stops the
++   * experiment, not a rollback that might destroy another editor operation. */
++  self->applying = TRUE;
++  if (self->callback_mode == CALLBACK_BEGIN_EDIT)
++    callback.handler = g_signal_connect (buffer, "begin-user-action",
++                                         G_CALLBACK (begin_edit_cb), self);
++  else if (self->callback_mode == CALLBACK_DELETE_EDIT)
++    callback.handler = g_signal_connect_after (buffer, "delete-range",
++                                               G_CALLBACK (after_delete_edit_cb), self);
++  before = self->revision;
++  gtk_text_buffer_begin_user_action (buffer);
++  /* begin-user-action itself can invoke callbacks. Revalidate before deletion. */
++  if (self->revision != before || self->epoch != self->request_epoch || !fixed_original (self))
++    {
++      g_print ("typomorph-diagnostic: BEGIN_ACTION_REFUSED\n");
++      gtk_text_buffer_end_user_action (buffer);
++      self->applying = FALSE;
++      return finish_probe (self, "REFUSED");
++    }
++  self->applying = TRUE;
++  gtk_text_buffer_get_bounds (buffer, &begin, &end);
++  gtk_text_buffer_delete (buffer, &begin, &end);
++  if (!eligible (self))
++    {
++      self->faulted = TRUE;
++      gtk_text_buffer_end_user_action (buffer);
++      self->applying = FALSE;
++      return finish_probe (self, "FAULT_PARTIAL_EDIT");
++    }
++  if (self->inject)
++    {
++      /* Fixed competing edit: expose the non-atomic deletion/insertion gap. */
++      gtk_text_buffer_get_start_iter (buffer, &begin);
++      gtk_text_buffer_insert (buffer, &begin, "x", 1);
++    }
++  if (self->detached || self->revision != before + 1 || gtk_text_buffer_get_char_count (buffer) != 0)
++    {
++      self->faulted = TRUE;
++      gtk_text_buffer_end_user_action (buffer);
++      self->applying = FALSE;
++      return finish_probe (self, "FAULT_PARTIAL_EDIT");
++    }
++  gtk_text_buffer_get_start_iter (buffer, &begin);
++  gtk_text_buffer_insert (buffer, &begin, "привет", -1);
++  gtk_text_buffer_end_user_action (buffer);
++  if (!eligible (self) || self->revision != before + 2 ||
++      gtk_text_buffer_get_char_count (buffer) != 6)
++    self->faulted = TRUE;
++  else
++    {
++      g_autofree char *actual = NULL;
++      gtk_text_buffer_get_bounds (buffer, &begin, &end);
++      actual = gtk_text_buffer_get_text (buffer, &begin, &end, TRUE);
++      if (g_strcmp0 (actual, "привет") != 0)
++        self->faulted = TRUE;
++    }
++  self->applying = FALSE;
++  if (self->faulted)
++    {
++      return finish_probe (self, "FAULT_PARTIAL_EDIT");
++    }
++  /* A harness must inspect the synthetic document, callbacks and undo stack.
++   * An attempted pair is not proof of atomic replacement or safe undo. */
++  return finish_probe (self, "RANGE_PAIR_ATTEMPTED");
++}
++
++void
++editor_typomorph_owner_probe (EditorTypomorphOwner *self, const char *mode)
++{
++  GtkRoot *root;
++  if (self == NULL || !private_session ())
++    return;
++  if (self->applying)
++    {
++      g_print ("typomorph-probe: BUSY\n");
++      return;
++    }
++  self->completed_result = NULL;
++  self->checked = TRUE;
++  editor_typomorph_owner_invalidate (self);
++  if (g_strcmp0 (mode, "normal") != 0 && g_strcmp0 (mode, "gap-edit") != 0 &&
++      g_strcmp0 (mode, "callback-begin-edit") != 0 &&
++      g_strcmp0 (mode, "callback-delete-edit") != 0)
++    {
++      g_print ("typomorph-probe: UNSUPPORTED\n");
++      return;
++    }
++  if (!fixed_original (self))
++    {
++      g_print ("typomorph-probe: INELIGIBLE\n");
++      return;
++    }
++  root = gtk_widget_get_root (GTK_WIDGET (self->view));
++  if (self->window != GTK_WINDOW (root))
++    {
++      if (self->window != NULL)
++        {
++          g_signal_handlers_disconnect_by_data (self->window, self);
++          g_object_remove_weak_pointer (G_OBJECT (self->window),
++                                        (gpointer *)&self->window);
++          self->window = NULL;
++        }
++      /* The root owns the page; a strong root reference would form a cycle. */
++      self->window = GTK_WINDOW (root);
++      g_object_add_weak_pointer (G_OBJECT (self->window), (gpointer *)&self->window);
++      g_signal_connect (self->window, "notify::is-active", G_CALLBACK (notify_cb), self);
++    }
++  self->completed_result = NULL;
++  self->checked = FALSE;
++  self->inject = g_str_equal (mode, "gap-edit");
++  self->callback_fired = FALSE;
++  self->callback_mode = CALLBACK_NONE;
++  if (g_str_equal (mode, "callback-begin-edit"))
++    self->callback_mode = CALLBACK_BEGIN_EDIT;
++  else if (g_str_equal (mode, "callback-delete-edit"))
++    self->callback_mode = CALLBACK_DELETE_EDIT;
++  self->request_epoch = self->epoch;
++  self->request_revision = self->revision;
++  self->deadline = g_get_monotonic_time () + G_TIME_SPAN_SECOND;
++  self->timer = g_timeout_add (200, complete_cb, self);
++  g_print ("typomorph-probe: WAITING\n");
++}
++
++/* This test oracle reads only the bounded synthetic original document. It never
++ * seeds text, changes focus, reports contents or supplies correction authority. */
++static gboolean
++matches_synthetic (EditorTypomorphOwner *self, const char *expected)
++{
++  GtkTextBuffer *buffer = GTK_TEXT_BUFFER (self->document);
++  GtkTextIter begin, end;
++  g_autofree char *actual = NULL;
++  if (!eligible_metadata (self) ||
++      gtk_text_buffer_get_char_count (buffer) != g_utf8_strlen (expected, -1) ||
++      gtk_text_buffer_get_char_count (buffer) > 7)
++    return FALSE;
++  gtk_text_buffer_get_bounds (buffer, &begin, &end);
++  actual = gtk_text_buffer_get_text (buffer, &begin, &end, TRUE);
++  return g_strcmp0 (actual, expected) == 0;
++}
++
++void
++editor_typomorph_owner_check (EditorTypomorphOwner *self, const char *mode)
++{
++  GtkTextBuffer *buffer;
++  gboolean normal, begin_edit, delete_edit, gap_edit;
++  if (self == NULL || !private_session ())
++    return;
++  if (self->applying || self->timer != 0 || self->completed_result == NULL || self->checked ||
++      self->epoch != self->completed_epoch || self->revision != self->completed_revision)
++    {
++      g_print ("typomorph-check: NOT_READY\n");
++      return;
++    }
++  normal = g_strcmp0 (mode, "normal") == 0 &&
++           !self->inject && self->callback_mode == CALLBACK_NONE;
++  begin_edit = g_strcmp0 (mode, "callback-begin-edit") == 0 &&
++               self->callback_mode == CALLBACK_BEGIN_EDIT;
++  delete_edit = g_strcmp0 (mode, "callback-delete-edit") == 0 &&
++                self->callback_mode == CALLBACK_DELETE_EDIT;
++  gap_edit = g_strcmp0 (mode, "gap-edit") == 0 && self->inject;
++  if (!normal && !begin_edit && !delete_edit && !gap_edit)
++    {
++      g_print ("typomorph-check: WRONG_CASE\n");
++      return;
++    }
++  self->refs++; /* Undo/redo may dispose the page synchronously. */
++  self->checked = TRUE;
++  self->applying = TRUE;
++  buffer = GTK_TEXT_BUFFER (self->document);
++  if (normal)
++    {
++      if (self->faulted || g_strcmp0 (self->completed_result, "RANGE_PAIR_ATTEMPTED") != 0 ||
++          !matches_synthetic (self, "привет") || !gtk_text_buffer_get_can_undo (buffer))
++        goto failed;
++      gtk_text_buffer_undo (buffer);
++      if (!matches_synthetic (self, "ghbdtn") || !gtk_text_buffer_get_can_redo (buffer))
++        goto failed;
++      gtk_text_buffer_redo (buffer);
++      if (!matches_synthetic (self, "привет"))
++        goto failed;
++      g_print ("typomorph-check: RANGE_AND_ORDINARY_UNDO_REDO_OBSERVED\n");
++    }
++  else if (begin_edit)
++    {
++      if (self->faulted || !self->callback_fired ||
++          g_strcmp0 (self->completed_result, "REFUSED") != 0 ||
++          !matches_synthetic (self, "ghbdtnx"))
++        goto failed;
++      g_print ("typomorph-check: PREDELETE_REFUSAL_OBSERVED\n");
++    }
++  else
++    {
++      if (!self->faulted || (delete_edit && !self->callback_fired) ||
++          g_strcmp0 (self->completed_result, "FAULT_PARTIAL_EDIT") != 0 ||
++          !matches_synthetic (self, "x"))
++        goto failed;
++      /* Reproducing the known unsafe schedule is explicitly not a safety pass. */
++      g_print ("typomorph-check: KNOWN_UNSAFE_PARTIAL_EDIT_OBSERVED\n");
++    }
++  goto out;
++failed:
++  self->faulted = TRUE;
++  g_print ("typomorph-check: CHECK_FAILED\n");
++out:
++  self->applying = FALSE;
++  owner_unref (self);
++}
++
++/* Fixed private-runner driver. It waits for real synthetic key input; it never
++ * inserts the original word, changes focus, or exposes arbitrary control IPC. */
++static gboolean
++harness_tick (gpointer data)
++{
++  g_autoptr(EditorTypomorphOwner) self = data;
++  const char *mode = g_getenv ("TYPOMORPH_TEXT_EDITOR_CASE");
++  GApplication *application = g_application_get_default ();
++  self->refs++;
++  if (self->detached || !private_session () || application == NULL ||
++      g_get_monotonic_time () >= self->harness_deadline)
++    {
++      self->harness_timer = 0;
++      g_print ("typomorph-harness: FAILED\n");
++      if (application != NULL)
++        g_application_quit (application);
++      return G_SOURCE_REMOVE;
++    }
++  if (self->harness_phase == 0)
++    {
++      if (!eligible (self))
++        return G_SOURCE_CONTINUE;
++      if (gtk_text_buffer_get_char_count (GTK_TEXT_BUFFER (self->document)) == 0)
++        {
++          if (!self->harness_ready)
++            {
++              self->harness_ready = TRUE;
++              g_print ("typomorph-harness: READY\n");
++            }
++          return G_SOURCE_CONTINUE;
++        }
++      if (!self->harness_ready || !fixed_original (self))
++        return G_SOURCE_CONTINUE;
++      self->harness_phase = 1;
++      editor_typomorph_owner_probe (self, mode);
++      return G_SOURCE_CONTINUE;
++    }
++  if (self->timer != 0)
++    return G_SOURCE_CONTINUE;
++  self->harness_timer = 0;
++  editor_typomorph_owner_check (self, mode);
++  g_print ("typomorph-harness: FINISHED\n");
++  g_application_quit (application);
++  return G_SOURCE_REMOVE;
++}
++
++EditorTypomorphOwner *
++editor_typomorph_owner_new (EditorDocument *document, GtkSourceView *view)
++{
++  EditorTypomorphOwner *self;
++  if (!private_session ())
++    return NULL;
++  self = g_new0 (EditorTypomorphOwner, 1);
++  self->refs = 1;
++  self->document = g_object_ref (document);
++  self->view = g_object_ref (view);
++  g_signal_connect (document, "changed", G_CALLBACK (changed_cb), self);
++  g_signal_connect (document, "mark-set", G_CALLBACK (mark_cb), self);
++  g_signal_connect (document, "notify", G_CALLBACK (notify_cb), self);
++  g_signal_connect (view, "notify", G_CALLBACK (notify_cb), self);
++  g_signal_connect (view, "preedit-changed", G_CALLBACK (preedit_cb), self);
++  {
++    const char *mode = g_getenv ("TYPOMORPH_TEXT_EDITOR_CASE");
++    if (g_strcmp0 (mode, "normal") == 0 || g_strcmp0 (mode, "gap-edit") == 0 ||
++        g_strcmp0 (mode, "callback-begin-edit") == 0 ||
++        g_strcmp0 (mode, "callback-delete-edit") == 0)
++      {
++        self->refs++;
++        self->harness_deadline = g_get_monotonic_time () + 20 * G_TIME_SPAN_SECOND;
++        self->harness_timer = g_timeout_add_full (G_PRIORITY_DEFAULT, 100,
++                                                harness_tick, self,
++                                                (GDestroyNotify)owner_unref);
++      }
++  }
++  return self;
++}
++
++static void
++owner_unref (EditorTypomorphOwner *self)
++{
++  if (--self->refs != 0)
++    return;
++  g_signal_handlers_disconnect_by_data (self->document, self);
++  g_signal_handlers_disconnect_by_data (self->view, self);
++  if (self->window != NULL)
++    {
++      g_signal_handlers_disconnect_by_data (self->window, self);
++      g_object_remove_weak_pointer (G_OBJECT (self->window),
++                                    (gpointer *)&self->window);
++      self->window = NULL;
++    }
++  g_clear_object (&self->document);
++  g_clear_object (&self->view);
++  g_free (self);
++}
++
++void
++editor_typomorph_owner_free (EditorTypomorphOwner *self)
++{
++  if (self == NULL)
++    return;
++  self->detached = TRUE;
++  if (self->harness_timer != 0)
++    {
++      guint timer = self->harness_timer;
++      self->harness_timer = 0;
++      g_source_remove (timer);
++    }
++  editor_typomorph_owner_invalidate (self);
++  owner_unref (self);
++}

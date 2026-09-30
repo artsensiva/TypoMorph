@@ -16,9 +16,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Install system build dependencies
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Validate workspace
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --locked
 
       - name: Build .deb package
         run: ./scripts/build-deb.sh
@@ -34,16 +42,16 @@ jobs:
         working-directory: target/debian
         env:
           COSIGN_YES: "true"
-        run: cosign sign-blob --output-signature SHA256SUMS.sig --output-certificate SHA256SUMS.pem SHA256SUMS
+        run: cosign sign-blob --bundle SHA256SUMS.bundle.json SHA256SUMS
 
-      - name: Publish release
+      - name: Prepare draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ github.ref_name }}" \
             target/debian/typomorph_*.deb \
             target/debian/SHA256SUMS \
-            target/debian/SHA256SUMS.sig \
-            target/debian/SHA256SUMS.pem \
+            target/debian/SHA256SUMS.bundle.json \
             --title "${{ github.ref_name }}" \
+            --draft \
             --generate-notes

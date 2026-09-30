@@ -1,10 +1,11 @@
 [workspace]
 members = [
+	"crates/settings",
 	"crates/core-engine",
 	"crates/platform-linux",
 	"crates/licensing",
-	"crates/prompt-cloud",
 	"crates/native-host",
 	"crates/daemon",
 ]
+exclude = ["crates/prompt-cloud"]
 resolver = "2"

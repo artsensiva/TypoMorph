@@ -7,13 +7,18 @@
 
 use crate::{Language, LanguageClassifier};
 
-#[derive(Debug)]
 pub struct LayoutDecision {
     pub language: Language,
     pub confidence: f64,
     pub switch: bool,
     pub target_layout: Option<&'static str>,
     pub corrected: String,
+}
+
+impl std::fmt::Debug for LayoutDecision {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("LayoutDecision { [redacted] }")
+    }
 }
 
 pub fn evaluate_layout_candidates(
@@ -23,7 +28,23 @@ pub fn evaluate_layout_candidates(
     threshold: f64,
 ) -> LayoutDecision {
     let (original_language, original_confidence) = classifier.classify_with_confidence(text);
-    let alternate_layout = if current_layout == "ru" { "us" } else { "ru" };
+    // A language label does not establish a physical keyboard mapping. The
+    // prototype has only these two tables; unknown IDs must not alias US.
+    let alternate_layout = match current_layout {
+        "us" => Some("ru"),
+        "ru" => Some("us"),
+        _ => None,
+    };
+    if alternate_layout.is_none() || !threshold.is_finite() || !(0.0..=1.0).contains(&threshold) {
+        return LayoutDecision {
+            language: original_language,
+            confidence: original_confidence,
+            switch: false,
+            target_layout: None,
+            corrected: text.to_owned(),
+        };
+    }
+    let alternate_layout = alternate_layout.expect("known mapping checked");
     let alternate_text = correct_text_for_layout(text, current_layout, alternate_layout);
     let (mapped_language, whole_mapped_confidence) =
         classifier.classify_with_confidence(&alternate_text);
@@ -38,7 +59,15 @@ pub fn evaluate_layout_candidates(
     } else {
         (mapped_language, whole_mapped_confidence)
     };
-    let mapped_target = target_layout(mapped_language);
+    // Target identity must describe the table that produced alternate_text,
+    // never a different layout guessed from the detected language.
+    let mapped_target = match (alternate_layout, mapped_language) {
+        ("ru", Language::Russian)
+        | ("us", Language::English | Language::German | Language::French | Language::Spanish) => {
+            Some(alternate_layout)
+        }
+        _ => None,
+    };
     let coherent_alternate = mapped_confidence >= 0.80;
     let beats_original = coherent_alternate || mapped_confidence > original_confidence + 0.10;
     let switch = alternate_text != text
@@ -75,6 +104,9 @@ pub fn target_layout(language: Language) -> Option<&'static str> {
 }
 
 pub fn keycode_to_character(keycode: u16, layout: &str) -> Option<char> {
+    if !matches!(layout, "us" | "ru") {
+        return None;
+    }
     let index = match keycode {
         16..=25 => usize::from(keycode - 16),
         30..=38 => usize::from(keycode - 30 + 10),
@@ -89,6 +121,9 @@ pub fn keycode_to_character(keycode: u16, layout: &str) -> Option<char> {
 }
 
 pub fn keycode_for_character(character: char, layout: &str) -> Option<u16> {
+    if !matches!(layout, "us" | "ru") {
+        return None;
+    }
     let english = "qwertyuiopasdfghjklzxcvbnm";
     let russian = "йцукенгшщзфывапролдячсмить";
     let characters = if layout == "ru" { russian } else { english };
@@ -150,10 +185,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn layout_correction_is_unlimited_for_every_supported_language() {
+    fn legacy_language_hint_is_not_mapping_capability() {
         assert_eq!(target_layout(Language::English), Some("us"));
         assert_eq!(target_layout(Language::Russian), Some("ru"));
         assert_eq!(target_layout(Language::Ukrainian), Some("ua"));
+    }
+
+    #[test]
+    fn unsupported_layouts_never_fall_back_to_us_or_propose_a_switch() {
+        let classifier = LanguageClassifier::new();
+        for layout in ["", "unknown", "ua", "de", "fr", "es", "gb", "us(intl)"] {
+            assert_eq!(keycode_to_character(16, layout), None);
+            assert_eq!(keycode_to_character(57, layout), None);
+            assert_eq!(keycode_for_character('q', layout), None);
+            let decision = evaluate_layout_candidates("ghbdtn", layout, &classifier, 0.60);
+            assert!(!decision.switch);
+            assert_eq!(decision.target_layout, None);
+            assert_eq!(decision.corrected, "ghbdtn");
+            assert_eq!(correct_text_for_layout("ghbdtn", layout, "ru"), "ghbdtn");
+        }
+    }
+
+    #[test]
+    fn invalid_confidence_configuration_preserves_input() {
+        let classifier = LanguageClassifier::new();
+        for threshold in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -0.01, 1.01] {
+            let decision = evaluate_layout_candidates("ghbdtn", "us", &classifier, threshold);
+            assert!(!decision.switch);
+            assert_eq!(decision.corrected, "ghbdtn");
+        }
     }
 
     #[test]
@@ -247,5 +307,21 @@ mod tests {
             assert_eq!(decision.target_layout, None, "layout={current_layout}");
             assert_eq!(decision.corrected, "नमस्ते दुनिया", "layout={current_layout}");
         }
+    }
+}
+
+#[cfg(test)]
+mod privacy_tests {
+    use super::*;
+    #[test]
+    fn decision_debug_does_not_expose_corrected_text() {
+        let decision = LayoutDecision {
+            language: Language::English,
+            confidence: 1.0,
+            switch: true,
+            target_layout: Some("us"),
+            corrected: "PRIVATE123".into(),
+        };
+        assert_eq!(format!("{decision:?}"), "LayoutDecision { [redacted] }");
     }
 }

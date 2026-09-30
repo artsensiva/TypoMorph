@@ -53,3 +53,27 @@ The existing [CHANGELOG.md](../CHANGELOG.md) describes a prior synthetic-echo fi
 ## Future bug record template
 
 Record expected behavior, actual behavior, exact reproduction, synthetic example, environment/build, severity, frequency, impact on normal use, evidence provenance, and status. Separate user reports, independent reproductions, code findings, and hypotheses.
+
+## P0 follow-up
+
+After implementation-plan approval, technical environment checks, baseline tests, and live-path diagnostic cleanup began. See [P0 investigation](P0_INVESTIGATION.md). BUG-001 remains open pending controlled real-application reproduction; the stopped service and ignored GNOME setting are distinct findings, not a verified complete root cause.
+
+### Controlled P0 dry-run, 2026-09-24
+
+After owner readiness confirmation, the working-copy binary captured input and reached `correction_candidate` in a 30-second, non-mutating Text Editor session. The timeout stopped the process as expected. No switch/replacement was attempted, so BUG-001 remains open; this is partial pipeline evidence, not a successful end-to-end correction. See [P0 investigation](P0_INVESTIGATION.md).
+
+### Switching-backend finding
+
+Read-only GNOME probes confirmed that the deprecated setting is ignored and Shell Eval is rejected in the owner's session. P0 now rejects unsuccessful/unconfirmed replies and checks access before normal capture. Four regression tests cover these boundaries. The normal working-copy daemon therefore refuses this unavailable backend before editing text. A functional safe GNOME integration is still required; BUG-001 is not closed. See [P0 investigation](P0_INVESTIGATION.md).
+
+## DEV-002: Boundary space omitted from replacement span
+
+Source/model finding, not an additional owner-reported reproduction. The old boundary-triggered daemon removed N characters after N letters plus a space had reached the field. In the synthetic `ghbdtn ` example this left `g` and omitted the trailing space. Working-copy replacement planning now deletes N+1 and emits the complete corrected word plus space, or rejects an incomplete mapping. Six regression tests pass; real application replacement remains unverified. See [investigation](P0_INVESTIGATION.md).
+
+## 2026-09-30 real-editor experiment
+
+Baseline and patched Text Editor 50.1 now compile. The isolated patched app
+performs fixed `ghbdtn -> привет` and ordinary undo/redo, but post-deletion
+competing edits cause partial replacement, including through a GTK callback.
+BUG-001 remains open: this is not a working integration for unmodified apps.
+See [native results](NATIVE_TEXT_EDITOR_RESULTS.md). The production gate remains.

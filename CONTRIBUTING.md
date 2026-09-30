@@ -2,7 +2,7 @@
 
 ## Approval and scope
 
-Read [SPEC.md](docs/SPEC.md), [DECISIONS.md](docs/DECISIONS.md), and [OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md). Requirements are approved; revised documentation is awaiting owner review. A detailed implementation plan and its separate approval must precede application changes.
+Read [SPEC.md](docs/SPEC.md), [DECISIONS.md](docs/DECISIONS.md), and [OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md). Requirements and revised documentation are approved. The [implementation plan](docs/IMPLEMENTATION_PLAN.md) is also approved; local implementation and controlled validation within its scope may proceed.
 
 Do not use a documentation task as authorization to refactor, fix BUG-001, change deployment or legal terms, publish, or commit. Inspect Git state and preserve unrelated changes.
 

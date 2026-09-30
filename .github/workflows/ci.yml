@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, diagnostic/device-echo-investigation]
 
 env:
   CARGO_TERM_COLOR: always
@@ -35,6 +35,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
       - run: cargo test --workspace
+      - run: python3 -m unittest discover -s scripts/tests -v
+      - run: python3 -m unittest discover -s integrations/gnome/text-editor -p test_assess_probe.py -v
+      - run: python3 -m unittest discover -s integrations/gnome/text-editor -p test_native_runner.py -v
 
   audit:
     runs-on: ubuntu-latest

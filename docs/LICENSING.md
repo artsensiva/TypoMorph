@@ -1,6 +1,6 @@
 # Licensing, accounts, and commerce
 
-Status: approved product rules transcribed for documentation review, 2026-09-24.
+Status: product rules and documentation approved, 2026-09-24.
 This is a product specification, not a published customer contract or tax determination. The existing [source license](../LICENSE) remains unchanged.
 
 ## 1. Offers and feature access
@@ -40,7 +40,7 @@ The earlier proposal for an accountless per-installation trial is superseded.
 
 Network access is needed to activate a new installation and to obtain downloads. A renewed annual period must be delivered to the installation before its old confirmation expires; an offline application cannot assume that a future payment succeeded.
 
-The exact entitlement format, signature scheme, key management, clock-change handling, recovery procedure, and account-service availability policy require technical design approval. A local unsigned checksum is not sufficient evidence of server-issued access.
+The local verifier contract below is implemented under the owner's authorization to continue version 1 development autonomously. Production key management, clock-change handling, recovery, and account-service availability remain incomplete. A local unsigned checksum is not evidence of server-issued access.
 
 ## 4. Renewals, cancellation, and failure
 
@@ -107,6 +107,25 @@ The freshness cutoff and refresh schedule need operational definition. Other dis
 
 Email or a contact form, no guaranteed response time, for trial and both paid offers. Publish common troubleshooting instructions; do not promise priority support or an SLA.
 
-Current `crates/licensing` uses Lemon Squeezy and stores hashed status data with an unkeyed integrity checksum. The current daemon still treats layout correction as free and gates developer filtering by legacy license state. It does not implement this commercial model.
+`crates/licensing` now verifies Ed25519 signatures using trusted keys supplied by
+the application. The JSON envelope contains `key_id`, the exact UTF-8 JSON
+`payload`, and a 128-character hexadecimal signature. The signature covers
+`TypoMorph offline entitlement v1\0` followed by the exact payload bytes.
+Envelope input is limited to 8 KiB; unknown fields and inconsistent claims fail
+closed. Payload claims bind version 1, audience `typomorph-desktop`, random
+account/installation IDs, plan, issuance/start times, and the confirmed expiry.
+Trial expiry is exactly seven days after the original account-wide trial start.
+Annual access ends at the signed paid-through date. Grace requires a separately
+signed token issued after that date and ends exactly seven days later. Perpetual
+grants reject expiry fields and remain valid offline indefinitely.
+
+Six integration tests cover tampering, wrong account/device, unknown keys,
+invalid signatures, trial sharing, expiry boundaries, perpetual access and grace.
+Test signing secrets are deterministic fixtures only; no production key or
+activation endpoint is embedded. The daemon does not yet consume entitlements.
+This verifier does not implement email verification, three-device accounting,
+Stripe/webhooks, cancellation/refunds, hostile local clock rollback, or recovery.
+Legacy Lemon Squeezy/checksum code and CLI activation commands were removed.
+Recognized developer-window exclusion is no longer gated by a paid tier.
 
 Account retention/deletion rules, payment data inventory, final customer terms, activation-service recovery, and licensing tests are tracked in [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) and [TESTING.md](TESTING.md).

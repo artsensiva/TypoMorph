@@ -1,0 +1,247 @@
+Simulation only, 2026-09-27. No packages installed.
+Command: apt-get --simulate --no-install-recommends install build-essential meson ninja-build pkg-config gettext libglib2.0-dev libgtk-4-dev libgtksourceview-5-dev libadwaita-1-dev libspelling-1-dev libeditorconfig-dev
+
+NOTE: This is only a simulation!
+      apt-get needs root privileges for real execution.
+      Keep also in mind that locking is deactivated,
+      so don't depend on the relevance to the real current situation!
+Reading package lists...
+Building dependency tree...
+Reading state information...
+build-essential is already the newest version (12.12ubuntu2.26.04.2).
+pkg-config is already the newest version (2.5.1-4).
+Solving dependencies...
+The following additional packages will be installed:
+  gir1.2-appstream-1.0 gir1.2-freedesktop-dev gir1.2-glib-2.0-dev gir1.2-gly-2
+  gir1.2-gtksource-5 gir1.2-spelling-1 girepository-tools icu-devtools
+  libappstream-dev libblkid-dev libbrotli-dev libbz2-dev libcairo2-dev
+  libdatrie-dev libegl-dev libegl1-mesa-dev libepoxy-dev libffi-dev
+  libfontconfig-dev libfreetype-dev libfribidi-dev libgdk-pixbuf-2.0-dev
+  libgio-2.0-dev libgio-2.0-dev-bin libgl-dev libgles-dev libgles1
+  libglib2.0-dev-bin libglvnd-core-dev libglvnd-dev libglx-dev libglycin-2-dev
+  libgraphene-1.0-dev libgraphite2-dev libharfbuzz-cairo0 libharfbuzz-dev
+  libice-dev libicu-dev liblcms2-dev liblzma-dev libmount-dev libopengl-dev
+  libopengl0 libpango1.0-dev libpcre2-16-0 libpcre2-dev libpcre2-posix3
+  libpixman-1-dev libpng-dev libseccomp-dev libselinux-dev libsepol-dev
+  libsm-dev libsysprof-capture-4-dev libthai-dev libvulkan-dev libwayland-bin
+  libwayland-dev libx11-dev libxau-dev libxcb-render0-dev libxcb-shm0-dev
+  libxcb1-dev libxcomposite-dev libxcursor-dev libxdamage-dev libxdmcp-dev
+  libxext-dev libxfixes-dev libxft-dev libxi-dev libxinerama-dev
+  libxkbcommon-dev libxml2-dev libxrandr-dev libxrender-dev
+  native-architecture pango1.0-tools uuid-dev wayland-protocols x11proto-dev
+  xorg-sgml-doctools xtrans-dev
+Suggested packages:
+  autopoint gettext-doc libasprintf-dev libgettextpo-dev gnulib-l10n
+  libadwaita-1-doc libcairo2-doc libdatrie-doc editorconfig-doc freetype2-doc
+  libglib2.0-doc libxml2-utils libgraphene-doc libgraphite2-utils libgtk-4-doc
+  gtk-4-examples libgtksourceview-5-doc libice-doc icu-doc liblzma-doc
+  libpango1.0-doc seccomp libsm-doc libthai-doc libwayland-doc libx11-doc
+  libxcb-doc libxext-doc graphicsmagick
+Recommended packages:
+  bzip2-doc libpng-tools
+The following NEW packages will be installed:
+  gettext gir1.2-appstream-1.0 gir1.2-freedesktop-dev gir1.2-glib-2.0-dev
+  gir1.2-gly-2 gir1.2-gtksource-5 gir1.2-spelling-1 girepository-tools
+  icu-devtools libadwaita-1-dev libappstream-dev libblkid-dev libbrotli-dev
+  libbz2-dev libcairo2-dev libdatrie-dev libeditorconfig-dev libegl-dev
+  libegl1-mesa-dev libepoxy-dev libffi-dev libfontconfig-dev libfreetype-dev
+  libfribidi-dev libgdk-pixbuf-2.0-dev libgio-2.0-dev libgio-2.0-dev-bin
+  libgl-dev libgles-dev libgles1 libglib2.0-dev libglib2.0-dev-bin
+  libglvnd-core-dev libglvnd-dev libglx-dev libglycin-2-dev
+  libgraphene-1.0-dev libgraphite2-dev libgtk-4-dev libgtksourceview-5-dev
+  libharfbuzz-cairo0 libharfbuzz-dev libice-dev libicu-dev liblcms2-dev
+  liblzma-dev libmount-dev libopengl-dev libopengl0 libpango1.0-dev
+  libpcre2-16-0 libpcre2-dev libpcre2-posix3 libpixman-1-dev libpng-dev
+  libseccomp-dev libselinux-dev libsepol-dev libsm-dev libspelling-1-dev
+  libsysprof-capture-4-dev libthai-dev libvulkan-dev libwayland-bin
+  libwayland-dev libx11-dev libxau-dev libxcb-render0-dev libxcb-shm0-dev
+  libxcb1-dev libxcomposite-dev libxcursor-dev libxdamage-dev libxdmcp-dev
+  libxext-dev libxfixes-dev libxft-dev libxi-dev libxinerama-dev
+  libxkbcommon-dev libxml2-dev libxrandr-dev libxrender-dev meson
+  native-architecture ninja-build pango1.0-tools uuid-dev wayland-protocols
+  x11proto-dev xorg-sgml-doctools xtrans-dev
+0 upgraded, 92 newly installed, 0 to remove and 43 not upgraded.
+Inst gettext (0.23.2-1 Ubuntu:26.04/resolute [amd64])
+Inst gir1.2-appstream-1.0 (1.1.2-1 Ubuntu:26.04/resolute [amd64])
+Inst gir1.2-glib-2.0-dev (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst gir1.2-freedesktop-dev (1.86.0-6build1 Ubuntu:26.04/resolute [amd64])
+Inst gir1.2-gly-2 (2.1.1+ds-0ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst gir1.2-gtksource-5 (5.18.0-3 Ubuntu:26.04/resolute [amd64])
+Inst gir1.2-spelling-1 (0.4.9-1build1 Ubuntu:26.04/resolute [amd64])
+Inst native-architecture (0.2.6build1 Ubuntu:26.04/resolute [all])
+Inst girepository-tools (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst icu-devtools (78.2-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libffi-dev (3.5.2-4 Ubuntu:26.04/resolute [amd64])
+Inst uuid-dev (2.41.3-3ubuntu2.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libblkid-dev (2.41.3-3ubuntu2.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libsepol-dev (3.9-2 Ubuntu:26.04/resolute [amd64])
+Inst libpcre2-16-0 (10.46-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libpcre2-posix3 (10.46-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libpcre2-dev (10.46-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libselinux-dev (3.9-4build1 Ubuntu:26.04/resolute [amd64])
+Inst libmount-dev (2.41.3-3ubuntu2.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libsysprof-capture-4-dev (50.0-1 Ubuntu:26.04/resolute [amd64])
+Inst libgio-2.0-dev (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libgio-2.0-dev-bin (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libglib2.0-dev-bin (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libglib2.0-dev (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libappstream-dev (1.1.2-1 Ubuntu:26.04/resolute [amd64])
+Inst libbrotli-dev (1.2.0-3build1 Ubuntu:26.04/resolute [amd64])
+Inst libbz2-dev (1.0.8-6ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libpng-dev (1.6.57-1 Ubuntu:26.04/resolute [amd64])
+Inst libfreetype-dev (2.14.2+dfsg-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libfontconfig-dev (2.17.1-3ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libpixman-1-dev (0.46.4-1 Ubuntu:26.04/resolute [amd64])
+Inst xorg-sgml-doctools (1:1.11-1.1build1 Ubuntu:26.04/resolute [all])
+Inst x11proto-dev (2025.1-1 Ubuntu:26.04/resolute [all])
+Inst libice-dev (2:1.1.1-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libsm-dev (2:1.2.6-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libxau-dev (1:1.0.11-1build2 Ubuntu:26.04/resolute [amd64])
+Inst libxdmcp-dev (1:1.1.5-2 Ubuntu:26.04/resolute [amd64])
+Inst xtrans-dev (1.6.0-1build1 Ubuntu:26.04/resolute [all])
+Inst libxcb1-dev (1.17.0-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libx11-dev (2:1.8.13-1 Ubuntu:26.04/resolute [amd64])
+Inst libxcb-render0-dev (1.17.0-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libxcb-shm0-dev (1.17.0-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libxext-dev (2:1.3.4-1build3 Ubuntu:26.04/resolute [amd64])
+Inst libxrender-dev (1:0.9.12-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libcairo2-dev (1.18.4-3 Ubuntu:26.04/resolute [amd64])
+Inst libglx-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libgl-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libegl-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libglvnd-core-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libgles1 (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libgles-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libopengl0 (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libopengl-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libglvnd-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libegl1-mesa-dev (26.0.8-1ubuntu0.3 Ubuntu:26.04/resolute-updates [amd64])
+Inst libepoxy-dev (1.5.10-2build1 Ubuntu:26.04/resolute [amd64])
+Inst liblcms2-dev (2.17-1ubuntu0.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libseccomp-dev (2.6.0-2ubuntu5 Ubuntu:26.04/resolute [amd64])
+Inst libglycin-2-dev (2.1.1+ds-0ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libgdk-pixbuf-2.0-dev (2.44.5+dfsg-4ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libgraphene-1.0-dev (1.10.8-5build1 Ubuntu:26.04/resolute [amd64])
+Inst libfribidi-dev (1.0.16-5 Ubuntu:26.04/resolute [amd64])
+Inst libharfbuzz-cairo0 (12.3.2-2 Ubuntu:26.04/resolute [amd64])
+Inst libgraphite2-dev (1.3.14-11ubuntu1.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libicu-dev (78.2-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Inst libharfbuzz-dev (12.3.2-2 Ubuntu:26.04/resolute [amd64])
+Inst libdatrie-dev (0.2.14-1 Ubuntu:26.04/resolute [amd64])
+Inst libthai-dev (0.1.30-1 Ubuntu:26.04/resolute [amd64])
+Inst libxft-dev (2.3.6-1build2 Ubuntu:26.04/resolute [amd64])
+Inst pango1.0-tools (1.57.0-1 Ubuntu:26.04/resolute [amd64])
+Inst libpango1.0-dev (1.57.0-1 Ubuntu:26.04/resolute [amd64])
+Inst libwayland-bin (1.24.0-2 Ubuntu:26.04/resolute [amd64])
+Inst libwayland-dev (1.24.0-2 Ubuntu:26.04/resolute [amd64])
+Inst libxfixes-dev (1:6.0.0-2build2 Ubuntu:26.04/resolute [amd64])
+Inst libxcomposite-dev (1:0.4.6-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libxcursor-dev (1:1.2.3-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libxdamage-dev (1:1.1.7-1 Ubuntu:26.04/resolute [amd64])
+Inst libxi-dev (2:1.8.2-2 Ubuntu:26.04/resolute [amd64])
+Inst libxinerama-dev (2:1.1.4-3build2 Ubuntu:26.04/resolute [amd64])
+Inst libxkbcommon-dev (1.13.1-1 Ubuntu:26.04/resolute [amd64])
+Inst libxrandr-dev (2:1.5.4-1build1 Ubuntu:26.04/resolute [amd64])
+Inst libvulkan-dev (1.4.341.0-1 Ubuntu:26.04/resolute [amd64])
+Inst wayland-protocols (1.47-1 Ubuntu:26.04/resolute [all])
+Inst libgtk-4-dev (4.22.4+ds-0ubuntu0.1 Ubuntu:26.04/resolute-updates [amd64])
+Inst libadwaita-1-dev (1.9.1-0ubuntu0.1 Ubuntu:26.04/resolute-updates [amd64])
+Inst libeditorconfig-dev (0.12.10+~0.17.1-3ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst liblzma-dev (5.8.3-1 Ubuntu:26.04/resolute [amd64])
+Inst libxml2-dev (2.15.2+dfsg-0.1ubuntu0.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst libgtksourceview-5-dev (5.18.0-3 Ubuntu:26.04/resolute [amd64])
+Inst libspelling-1-dev (0.4.9-1build1 Ubuntu:26.04/resolute [amd64])
+Inst ninja-build (1.13.2-1 Ubuntu:26.04/resolute [amd64])
+Inst meson (1.10.1-1ubuntu2 Ubuntu:26.04/resolute [all])
+Conf gettext (0.23.2-1 Ubuntu:26.04/resolute [amd64])
+Conf gir1.2-appstream-1.0 (1.1.2-1 Ubuntu:26.04/resolute [amd64])
+Conf gir1.2-glib-2.0-dev (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf gir1.2-freedesktop-dev (1.86.0-6build1 Ubuntu:26.04/resolute [amd64])
+Conf gir1.2-gly-2 (2.1.1+ds-0ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf gir1.2-gtksource-5 (5.18.0-3 Ubuntu:26.04/resolute [amd64])
+Conf gir1.2-spelling-1 (0.4.9-1build1 Ubuntu:26.04/resolute [amd64])
+Conf native-architecture (0.2.6build1 Ubuntu:26.04/resolute [all])
+Conf girepository-tools (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf icu-devtools (78.2-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf libffi-dev (3.5.2-4 Ubuntu:26.04/resolute [amd64])
+Conf uuid-dev (2.41.3-3ubuntu2.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libblkid-dev (2.41.3-3ubuntu2.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libsepol-dev (3.9-2 Ubuntu:26.04/resolute [amd64])
+Conf libpcre2-16-0 (10.46-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libpcre2-posix3 (10.46-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libpcre2-dev (10.46-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libselinux-dev (3.9-4build1 Ubuntu:26.04/resolute [amd64])
+Conf libmount-dev (2.41.3-3ubuntu2.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libsysprof-capture-4-dev (50.0-1 Ubuntu:26.04/resolute [amd64])
+Conf libgio-2.0-dev (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libgio-2.0-dev-bin (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libglib2.0-dev-bin (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libglib2.0-dev (2.88.0-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libappstream-dev (1.1.2-1 Ubuntu:26.04/resolute [amd64])
+Conf libbrotli-dev (1.2.0-3build1 Ubuntu:26.04/resolute [amd64])
+Conf libbz2-dev (1.0.8-6ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libpng-dev (1.6.57-1 Ubuntu:26.04/resolute [amd64])
+Conf libfreetype-dev (2.14.2+dfsg-1ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libfontconfig-dev (2.17.1-3ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf libpixman-1-dev (0.46.4-1 Ubuntu:26.04/resolute [amd64])
+Conf xorg-sgml-doctools (1:1.11-1.1build1 Ubuntu:26.04/resolute [all])
+Conf x11proto-dev (2025.1-1 Ubuntu:26.04/resolute [all])
+Conf libice-dev (2:1.1.1-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libsm-dev (2:1.2.6-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libxau-dev (1:1.0.11-1build2 Ubuntu:26.04/resolute [amd64])
+Conf libxdmcp-dev (1:1.1.5-2 Ubuntu:26.04/resolute [amd64])
+Conf xtrans-dev (1.6.0-1build1 Ubuntu:26.04/resolute [all])
+Conf libxcb1-dev (1.17.0-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf libx11-dev (2:1.8.13-1 Ubuntu:26.04/resolute [amd64])
+Conf libxcb-render0-dev (1.17.0-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf libxcb-shm0-dev (1.17.0-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf libxext-dev (2:1.3.4-1build3 Ubuntu:26.04/resolute [amd64])
+Conf libxrender-dev (1:0.9.12-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libcairo2-dev (1.18.4-3 Ubuntu:26.04/resolute [amd64])
+Conf libglx-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libgl-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libegl-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libglvnd-core-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libgles1 (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libgles-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libopengl0 (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libopengl-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libglvnd-dev (1.7.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libegl1-mesa-dev (26.0.8-1ubuntu0.3 Ubuntu:26.04/resolute-updates [amd64])
+Conf libepoxy-dev (1.5.10-2build1 Ubuntu:26.04/resolute [amd64])
+Conf liblcms2-dev (2.17-1ubuntu0.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libseccomp-dev (2.6.0-2ubuntu5 Ubuntu:26.04/resolute [amd64])
+Conf libglycin-2-dev (2.1.1+ds-0ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf libgdk-pixbuf-2.0-dev (2.44.5+dfsg-4ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf libgraphene-1.0-dev (1.10.8-5build1 Ubuntu:26.04/resolute [amd64])
+Conf libfribidi-dev (1.0.16-5 Ubuntu:26.04/resolute [amd64])
+Conf libharfbuzz-cairo0 (12.3.2-2 Ubuntu:26.04/resolute [amd64])
+Conf libgraphite2-dev (1.3.14-11ubuntu1.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libicu-dev (78.2-2ubuntu1 Ubuntu:26.04/resolute [amd64])
+Conf libharfbuzz-dev (12.3.2-2 Ubuntu:26.04/resolute [amd64])
+Conf libdatrie-dev (0.2.14-1 Ubuntu:26.04/resolute [amd64])
+Conf libthai-dev (0.1.30-1 Ubuntu:26.04/resolute [amd64])
+Conf libxft-dev (2.3.6-1build2 Ubuntu:26.04/resolute [amd64])
+Conf pango1.0-tools (1.57.0-1 Ubuntu:26.04/resolute [amd64])
+Conf libpango1.0-dev (1.57.0-1 Ubuntu:26.04/resolute [amd64])
+Conf libwayland-bin (1.24.0-2 Ubuntu:26.04/resolute [amd64])
+Conf libwayland-dev (1.24.0-2 Ubuntu:26.04/resolute [amd64])
+Conf libxfixes-dev (1:6.0.0-2build2 Ubuntu:26.04/resolute [amd64])
+Conf libxcomposite-dev (1:0.4.6-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libxcursor-dev (1:1.2.3-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libxdamage-dev (1:1.1.7-1 Ubuntu:26.04/resolute [amd64])
+Conf libxi-dev (2:1.8.2-2 Ubuntu:26.04/resolute [amd64])
+Conf libxinerama-dev (2:1.1.4-3build2 Ubuntu:26.04/resolute [amd64])
+Conf libxkbcommon-dev (1.13.1-1 Ubuntu:26.04/resolute [amd64])
+Conf libxrandr-dev (2:1.5.4-1build1 Ubuntu:26.04/resolute [amd64])
+Conf libvulkan-dev (1.4.341.0-1 Ubuntu:26.04/resolute [amd64])
+Conf wayland-protocols (1.47-1 Ubuntu:26.04/resolute [all])
+Conf libgtk-4-dev (4.22.4+ds-0ubuntu0.1 Ubuntu:26.04/resolute-updates [amd64])
+Conf libadwaita-1-dev (1.9.1-0ubuntu0.1 Ubuntu:26.04/resolute-updates [amd64])
+Conf libeditorconfig-dev (0.12.10+~0.17.1-3ubuntu0.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf liblzma-dev (5.8.3-1 Ubuntu:26.04/resolute [amd64])
+Conf libxml2-dev (2.15.2+dfsg-0.1ubuntu0.2 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf libgtksourceview-5-dev (5.18.0-3 Ubuntu:26.04/resolute [amd64])
+Conf libspelling-1-dev (0.4.9-1build1 Ubuntu:26.04/resolute [amd64])
+Conf ninja-build (1.13.2-1 Ubuntu:26.04/resolute [amd64])
+Conf meson (1.10.1-1ubuntu2 Ubuntu:26.04/resolute [all])

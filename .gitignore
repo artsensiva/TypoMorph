@@ -19,6 +19,10 @@ extensions/dist/
 # Node (if any extension tooling is added later)
 node_modules/
 
+# Python diagnostic runners
+__pycache__/
+*.py[cod]
+
 # Locally-installed helper binaries (e.g. cosign), not part of the repo
 .tools/
 

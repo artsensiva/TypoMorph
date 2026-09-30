@@ -1,43 +1,38 @@
 # Architecture: observed implementation and target constraints
 
-Status: documentation review, 2026-09-24.
+Status: documentation approved; implementation design remains subject to the plan's review gates. Updated 2026-09-24.
 Product requirements are approved. This document does not finalize a new crate topology, OS API choice, GUI framework, account backend, license format, or implementation plan.
 
 ## 1. Current workspace
 
-The actual [Cargo workspace](../Cargo.toml) contains:
+The workspace contains six crates: `core-engine`, `platform-linux`, `daemon`,
+`licensing`, `settings`, and `native-host`. `prompt-cloud` is explicitly excluded;
+core prompt modules are no longer exported. Historical AI sources are not built.
+There are no Windows or macOS adapter crates yet.
 
-| Crate | Observed role | Important limits |
-| --- | --- | --- |
-| `core-engine` | Ring buffer, heuristic/n-gram language classification, US/RU conversion, prompt detection/cleanup | Seven language profiles do not equal seven usable layouts; scoring allocates strings/collections |
-| `platform-linux` | Multi-device evdev capture, uinput replacement, GNOME-oriented switching | No cross-platform adapter; field safety/IME integration not established |
-| `daemon` | CLI, boundary-triggered classification, tray, legacy license use | Debug input logging; no approved GUI/undo/account lifecycle |
-| `licensing` | Lemon Squeezy activation, hashed metadata, integrity checksum | Not the approved Stripe/trial/perpetual system; checksum is not authenticity proof |
-| `prompt-cloud` | Legacy BYOK/managed prompt transport | Network text path excluded from the new release; managed endpoint documented as a placeholder |
-| `native-host` | Browser-spawned stdio protocol process | Reuses core/cloud crates; runs independently of the daemon |
+## 2. Current execution paths (2026-09-28)
 
-There are no current `platform-windows`, `platform-macos`, `lang-packs`, or `common` workspace crates. Prior diagrams showing them were proposed architecture, not implemented components.
+- Production `run` refuses before capture because no safe replacement backend exists.
+- Explicit `run --dry-run` is a controlled diagnostic, never production correction.
+  It checks saved pause and initial field metadata before opening devices. Its
+  256-event queue is bounded; overflow or device loss stops the stream. Pause
+  closes and joins readers, clears input state, and resume requires fresh metadata.
+  CLI preference changes are polled every 100 ms; this is not an instantaneous
+  acknowledged cross-process pause protocol. AT-SPI ordering remains unproven.
+- Recognized developer contexts are excluded regardless of entitlement.
+- `settings` serializes updates using an OS file lock and atomic replacement;
+  malformed/future settings fail closed. No text or credentials belong in it.
+- `licensing` verifies domain-separated Ed25519 tokens against caller-supplied
+  trusted public keys, account/device bindings and confirmed access periods.
+  It performs no network I/O. No production keys or account service are configured.
+- `native-host` accepts frames of at most 4 KiB and reports readiness only. It
+  never authorizes correction. Extension sources request only Native Messaging,
+  read no page content, and expose no AI/cloud or legacy Free/Pro controls.
 
-## 2. Observed live path
-
-1. The daemon loads legacy licensing state and opens multiple input devices.
-2. Keycodes are converted using the daemon's current layout string and limited tables.
-3. Characters accumulate in a 32-character ring buffer, with scan codes in a separate vector.
-4. A whitespace boundary triggers candidate evaluation.
-5. A legacy licensed developer-window filter may bypass replacement.
-6. Delivery is suppressed during layout switching and uinput emission.
-7. The daemon updates its layout state and clears buffers.
-
-Source evidence:
-- [Daemon](../crates/daemon/src/main.rs): input/buffer stderr output, prompt hotkey, boundary behavior, pause loop, `xdotool` filtering, and an inactivity-reset TODO.
-- [Layout module](../crates/core-engine/src/layout.rs): two candidate paths, partial physical US/RU tables, and target-layout routing.
-- [Linux adapter](../crates/platform-linux/src/lib.rs): switching, event suppression, and explicit per-key sleeps during emission.
-- [License store](../crates/licensing/src/lib.rs): status/checksum persistence and legacy feature access.
-- [Native host](../crates/native-host/src/main.rs): its own license load and request loop.
-
-Suppression of events delivered to the daemon is not proof that the foreground application loses keystrokes. It does, however, explicitly omit genuine input from analysis during replacement, and there is no demonstrated safe transaction with the target field. Race behavior needs reproduction and testing rather than a claimed root cause for BUG-001.
-
-The 32-character analysis buffer also does not prove that every auxiliary buffer is bounded. Current scan-code, string, and n-gram structures must be assessed before making performance/memory claims.
+Token, analysis buffer, layout decision and raw key event Debug output is redacted.
+No live input was captured while implementing these changes. The installed binary
+is unchanged. Pure tests and private-bus fixtures do not establish native application
+correction, safe undo, or protected-field guarantees.
 
 ## 3. Target responsibility boundaries
 
@@ -108,11 +103,11 @@ Required semantics:
 - explicit paid enrollment, cancellations, first-payment refunds, and confirmed failed-renewal grace;
 - account-based device release with the accepted offline-revocation limitation.
 
-A server-authenticated local entitlement is a target security property. Token format, signing algorithms, key rotation, clocks, recovery, and service hosting are still proposed-design work. No production keys, endpoints, accounts, or Stripe resources are created by this documentation update.
+A server-authenticated local entitlement is a target security property. The local verifier now uses the wire contract documented in LICENSING.md. Production key provisioning/rotation, clock handling, recovery, and service hosting remain incomplete. No production keys, endpoints, accounts, or Stripe resources are created by this documentation update.
 
 ## 8. Browser extensions
 
-The current host process is independent of the daemon and still includes prompt handling. The approved product does not yet select a final extension architecture.
+The host remains independent of the daemon but now only reports unavailable correction; all prompt handling has been removed from the working build. The approved product does not yet select a final extension architecture.
 
 First measure native browser coverage. If an extension is needed, propose how local safety, settings, access state, lifecycle, and correction ownership are coordinated. A stopped/missing desktop installation and duplicate correction must have explicit behavior before approval. Extension store delivery also requires resolution.
 
@@ -120,8 +115,12 @@ Do not describe current native-host execution as already implementing a unified 
 
 ## 9. Distribution, diagnostics, and evidence
 
-The current CI runs fmt, clippy, tests, and dependency audit on Ubuntu. The release workflow builds/signs checksums for Debian assets. Neither establishes native Windows/macOS compatibility or the target signed updater.
+The current CI runs fmt, clippy, tests, and dependency audit on Ubuntu. The release workflow prepares draft Debian assets with a signed checksum bundle. Neither establishes native Windows/macOS compatibility or the target signed updater.
 
-Release input logs must be eliminated under the later approved implementation plan. Development-only diagnostic affordances need a separate safety boundary. Verify account, payment, update, reporting, and failure paths cannot receive input content.
+The working build removes live-path input logs and redacts content-bearing Debug output; release privacy validation remains incomplete. Development-only diagnostic affordances need a separate safety boundary. Verify account, payment, update, reporting, and failure paths cannot receive input content.
 
 See [TESTING.md](TESTING.md) for evidence and [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for unresolved architecture choices. No compliance certification, zero-allocation guarantee, or unconditional platform support is implied.
+
+## P1 working-copy update: GNOME layout integration
+
+The discovery observations above describe the earlier source baseline. The working copy now replaces ignored-setting/Eval switching with a typed local GNOME companion protocol. See [bridge documentation](../integrations/gnome/README.md) and [investigation evidence](P0_INVESTIGATION.md). Only layout identity and acknowledged activation are exposed; field safety, context transactions, and full cross-platform support remain outstanding. The layout-only companion was installed and switching validated; it does not provide field ownership or a safe edit transaction.

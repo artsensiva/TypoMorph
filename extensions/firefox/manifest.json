@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TypoMorph",
   "version": "0.1.0",
-  "description": "Fix keyboard layout mistakes and improve AI prompts locally — free, offline, no cloud required unless you opt in.",
+  "description": "TypoMorph desktop connection status. Correction requires a supported desktop integration.",
   "browser_specific_settings": {
     "gecko": {
       "id": "typomorph@example.com",
@@ -12,18 +12,7 @@
   "action": {
     "default_popup": "popup.html"
   },
-  "background": {
-    "scripts": ["background.js"]
-  },
-  "permissions": ["nativeMessaging", "contextMenus", "activeTab", "scripting", "storage"],
-  "commands": {
-    "fix-layout": {
-      "suggested_key": { "default": "Ctrl+Shift+L" },
-      "description": "Fix keyboard layout of the selected text"
-    },
-    "improve-prompt": {
-      "suggested_key": { "default": "Ctrl+Shift+I" },
-      "description": "Improve the selected text as an AI prompt"
-    }
-  }
+  "permissions": [
+    "nativeMessaging"
+  ]
 }

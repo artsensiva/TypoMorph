@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 pub struct TypoMorphTray {
     pub paused: Arc<AtomicBool>,
-    pub is_pro: bool,
+    pub store: settings::Store,
 }
 
 impl Tray for TypoMorphTray {
@@ -44,23 +44,19 @@ impl Tray for TypoMorphTray {
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
         let is_paused = self.paused.load(Ordering::Relaxed);
-        let tier_label = if self.is_pro {
-            "TypoMorph: Pro Tier"
-        } else {
-            "TypoMorph: Free Tier"
-        };
         let state_label = if is_paused {
             "Status: Paused"
         } else {
-            "Status: Active"
+            "Status: Diagnostic only"
         };
         let toggle_label = if is_paused { "Resume" } else { "Pause" };
 
         let paused_clone = Arc::clone(&self.paused);
+        let store = self.store.clone();
 
         vec![
             StandardItem {
-                label: format!("{tier_label} ({state_label})"),
+                label: format!("TypoMorph ({state_label})"),
                 enabled: false,
                 ..Default::default()
             }
@@ -69,8 +65,15 @@ impl Tray for TypoMorphTray {
             StandardItem {
                 label: toggle_label.into(),
                 activate: Box::new(move |_| {
-                    let prev = paused_clone.load(Ordering::Relaxed);
-                    paused_clone.store(!prev, Ordering::Relaxed);
+                    match store.update(|s| s.paused = !s.paused) {
+                        Ok(saved) => paused_clone.store(saved.paused, Ordering::SeqCst),
+                        Err(_) => {
+                            // Stop the diagnostic on persistence failure; never leave
+                            // capture running after a failed pause request.
+                            eprintln!("unable to save pause; diagnostic stopped");
+                            std::process::exit(1);
+                        }
+                    }
                 }),
                 ..Default::default()
             }
@@ -88,9 +91,9 @@ impl Tray for TypoMorphTray {
     }
 }
 
-pub fn spawn_tray(is_pro: bool, paused: Arc<AtomicBool>) {
+pub fn spawn_tray(paused: Arc<AtomicBool>, store: settings::Store) {
     std::thread::spawn(move || {
-        let tray = TypoMorphTray { paused, is_pro };
+        let tray = TypoMorphTray { paused, store };
         let service = TrayService::new(tray);
         let handle = service.handle();
         service.spawn();

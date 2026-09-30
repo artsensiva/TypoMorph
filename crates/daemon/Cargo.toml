@@ -9,12 +9,11 @@ name = "typomorph"
 path = "src/main.rs"
 
 [dependencies]
+settings = { path = "../settings" }
 ksni = "0.2"
 clap = { version = "4", features = ["derive"] }
 core-engine = { path = "../core-engine" }
-licensing = { path = "../licensing" }
 platform-linux = { path = "../platform-linux" }
-prompt-cloud = { path = "../prompt-cloud" }
 thiserror = "1"
 
 [package.metadata.deb]
@@ -22,10 +21,9 @@ name = "typomorph"
 maintainer = "TypoMorph Team <support@typomorph.com>"
 copyright = "2026 TypoMorph"
 license-file = ["../../LICENSE", "4"]
-extended-description = "High-performance privacy-first layout switcher with developer mode and sub-millisecond classification."
+extended-description = "Local keyboard-layout correction. Development build; automatic correction is currently unavailable."
 section = "utils"
 priority = "optional"
-maintainer-scripts = "debian"
 assets = [
 	["../../target/release/typomorph", "usr/bin/typomorph", "755"],
 	[
@@ -38,7 +36,6 @@ assets = [
 		"usr/lib/systemd/user/typomorph.service",
 		"644",
 	],
-	["udev/99-typomorph.rules", "lib/udev/rules.d/99-typomorph.rules", "644"],
 	[
 		"native-messaging/com.typomorph.native_host.json",
 		"etc/opt/chrome/native-messaging-hosts/com.typomorph.native_host.json",
@@ -60,3 +57,6 @@ assets = [
 		"644",
 	],
 ]
+
+[dev-dependencies]
+tempfile = "3"

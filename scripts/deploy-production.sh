@@ -22,7 +22,7 @@ tar -xzf "${ROOT_DIR}/typomorph-production.tar.gz" -C "${TMP_DIR}"
 echo "=== 2. Выгрузка на сервер по FTPS (TLS) ==="
 lftp -c "
 set ftp:ssl-force true
-set ssl:verify-certificate no
+set ssl:verify-certificate yes
 open -u ${FTP_USER},${FTP_PASS} ${HOST}
 cd public_html
 mkdir -p typomorph

@@ -1,6 +1,6 @@
 # Product roadmap and approval gates
 
-Status: product scope approved; updated documentation awaiting review.
+Status: product scope, documentation, and implementation plan approved; P0 in progress.
 Date: 2026-09-24.
 
 There is no desired fixed release date. Work as quickly as practical and release when the complete agreed scope meets its readiness criteria. Speed does not waive data safety, testing, or approval.
@@ -11,12 +11,12 @@ There is no desired fixed release date. Work as quickly as practical and release
 | --- | --- |
 | Interactive discovery and final requirements review | Approved by the owner |
 | Update English technical documentation | Authorized; this documentation change |
-| Owner review of the revised documents | Pending |
-| Detailed implementation plan | Must be proposed after documentation approval |
-| Explicit implementation-plan approval | Pending; required before application code changes |
+| Owner review of the revised documents | Approved; baseline committed as `e42e77c` |
+| Detailed implementation plan | [Approved](IMPLEMENTATION_PLAN.md) |
+| Explicit implementation-plan approval | Granted; local implementation and controlled validation authorized |
 | Release readiness | Not reached |
 
-The stages below are proposed sequencing from the approved review, not a detailed implementation plan or permission to edit code, fix bugs, refactor, create commits, or deploy.
+The stages below summarize the approved detailed implementation plan. Its authorization boundaries still apply; production publication and additional commits/pushes are separate actions.
 
 ## 2. Proposed delivery stages after approval
 

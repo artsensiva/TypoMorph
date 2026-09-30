@@ -1,0 +1,7 @@
+{
+  "src/editor-page.c": "11deebb51a0848ab0f29e373b9d490134361b2fc52fd2e7f8ff743ede3f33bb9",
+  "src/editor-page-private.h": "56cdb92a315484ac4253c100040450f01be5b2be66f0a8d5e3daae17e3d21f1d",
+  "src/editor-document.c": "670f7a2a3fdc3a0d695548e3c2ba76f186c647132f9f29719ba2f618c7593ab8",
+  "src/meson.build": "97f477e3fa8fa829fb7312b6e9fea5aa138c690ab8745c1024b947f0bffa1ad3",
+  "meson_options.txt": "6702f280055ae46c7a6bcdd3f428f03523fb210a11b51f2ce77bed6a74cc941e"
+}

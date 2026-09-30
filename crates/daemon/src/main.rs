@@ -1,21 +1,19 @@
 mod tray;
-use std::io::{self, BufRead, Read};
+use std::io::{self, BufRead};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
+use core_engine::context::ContextGuard;
 use core_engine::layout::{
-    evaluate_layout_candidates, infer_layout_from_text, keycode_to_character, replacement_keycodes,
+    evaluate_layout_candidates, infer_layout_from_text, keycode_to_character,
 };
-use core_engine::prompt_detector::PromptDetector;
-use core_engine::prompt_improver::improve_rule_based;
+use core_engine::replacement::plan_word_replacement;
 use core_engine::{LanguageClassifier, RingBuffer, RING_BUFFER_CAPACITY};
-use licensing::{FeatureAccess, LemonSqueezyClient, LicenseError, LicenseStore};
-use platform_linux::{GnomeShellSwitcher, LayoutSwitcher, MultiEvdevKeyboard, UinputKeyboard};
-use prompt_cloud::{Backend, PromptCloudClient};
+use platform_linux::{
+    require_safe_replacement_backend, GnomeShellSwitcher, InputContext, MultiEvdevKeyboard,
+};
 use thiserror::Error;
 
 #[derive(Debug, Parser)]
@@ -32,29 +30,21 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     Run(RunArgs),
+    /// Check layout-backend access without capturing keys or changing the layout.
+    CheckLayoutBackend,
+    /// Inspect field eligibility using metadata only; never read text or capture keys.
+    CheckInputContext,
     TestInput(TestInputArgs),
-    ImprovePrompt(ImprovePromptArgs),
-    License {
-        #[command(subcommand)]
-        command: LicenseCommand,
-    },
     Status,
-}
-
-#[derive(Debug, Args)]
-struct ImprovePromptArgs {
-    #[arg(long, help = "Read the prompt text from stdin")]
-    stdin: bool,
-    #[arg(
-        long,
-        help = "Allow sending the prompt to a cloud AI backend (Anthropic API); never happens without this flag"
-    )]
-    cloud: bool,
-    #[arg(
-        long,
-        help = "Anthropic API key for the free bring-your-own-key cloud path (defaults to $TYPOMORPH_ANTHROPIC_KEY)"
-    )]
-    api_key: Option<String>,
+    /// Persist pause without opening input devices.
+    Pause,
+    /// Clear persistent pause; does not start input capture.
+    Resume,
+    /// Set the global sound preference (off by default).
+    Sounds {
+        #[arg(action = clap::ArgAction::Set, value_parser = clap::value_parser!(bool))]
+        enabled: bool,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -69,23 +59,26 @@ struct TestInputArgs {
 struct RunArgs {
     #[arg(long, default_value = "us")]
     layout: String,
-    #[arg(long, help = "Classify and report without opening uinput or D-Bus")]
+    #[cfg_attr(
+        debug_assertions,
+        arg(
+            long,
+            help = "Controlled live-input diagnostic; requires field metadata and never changes text"
+        )
+    )]
+    #[cfg_attr(not(debug_assertions), arg(skip))]
     dry_run: bool,
-}
-
-#[derive(Debug, Subcommand)]
-enum LicenseCommand {
-    Activate {
-        key: String,
-        #[arg(long, default_value = "typomorph-linux")]
-        instance: String,
-    },
+    #[arg(
+        long,
+        help = "Report fixed processing-stage labels without input content"
+    )]
+    diagnostics: bool,
 }
 
 #[derive(Debug, Error)]
 enum DaemonError {
-    #[error("license operation failed: {0}")]
-    License(#[from] LicenseError),
+    #[error("{0}")]
+    Settings(#[from] settings::SettingsError),
     #[error("platform operation failed: {0}")]
     Platform(#[from] platform_linux::PlatformError),
     #[error("input stream failed: {0}")]
@@ -102,12 +95,39 @@ fn main() {
 fn run_cli(cli: Cli) -> Result<(), DaemonError> {
     match cli.command {
         Commands::Run(args) => run_daemon(args),
+        Commands::CheckLayoutBackend => {
+            GnomeShellSwitcher::connect()?;
+            println!("layout backend access available; no capture or layout change performed");
+            Ok(())
+        }
+        Commands::CheckInputContext => {
+            let context = InputContext::connect().ok_or_else(|| {
+                platform_linux::PlatformError::UnsupportedBackend(
+                    "AT-SPI metadata unavailable".into(),
+                )
+            })?;
+            context.check().map_err(|code| {
+                platform_linux::PlatformError::UnsupportedBackend(format!(
+                    "field metadata rejected: {code}"
+                ))
+            })?;
+            println!("eligible field metadata available; no text read or input capture performed");
+            Ok(())
+        }
         Commands::TestInput(args) => test_input(args),
-        Commands::ImprovePrompt(args) => improve_prompt(args),
-        Commands::License { command } => match command {
-            LicenseCommand::Activate { key, instance } => activate_license(&key, &instance),
-        },
         Commands::Status => print_status(),
+        Commands::Pause | Commands::Resume => {
+            let paused = matches!(cli.command, Commands::Pause);
+            settings::Store::new(settings::Store::default_path()?).update(|s| s.paused = paused)?;
+            println!("persistent pause: {paused}");
+            Ok(())
+        }
+        Commands::Sounds { enabled } => {
+            settings::Store::new(settings::Store::default_path()?)
+                .update(|s| s.sounds_enabled = enabled)?;
+            println!("sounds enabled: {enabled}");
+            Ok(())
+        }
     }
 }
 
@@ -157,197 +177,139 @@ fn test_input(args: TestInputArgs) -> Result<(), DaemonError> {
     Ok(())
 }
 
-fn improve_prompt(args: ImprovePromptArgs) -> Result<(), DaemonError> {
-    if !args.stdin {
-        eprintln!("typomorph improve-prompt currently only supports --stdin");
-        std::process::exit(2);
-    }
-
-    let mut text = String::new();
-    io::stdin().lock().read_to_string(&mut text)?;
-    let text = text.trim();
-    if text.is_empty() {
-        eprintln!("no input on stdin");
-        return Ok(());
-    }
-
-    let signal = PromptDetector::new().detect(text);
-    eprintln!(
-        "prompt-detected={} confidence={:.2} language={:?}",
-        signal.is_prompt, signal.confidence, signal.language
-    );
-
-    if !args.cloud {
-        println!("{}", improve_rule_based(text));
-        eprintln!("mode=local (free, offline, no network)");
-        return Ok(());
-    }
-
-    let client = PromptCloudClient::new();
-    let api_key = args
-        .api_key
-        .or_else(|| std::env::var("TYPOMORPH_ANTHROPIC_KEY").ok())
-        .filter(|key| !key.trim().is_empty());
-
-    if let Some(api_key) = api_key {
-        match client.improve(text, Backend::BringYourOwnKey { api_key: &api_key }, false) {
-            Ok(improved) => {
-                println!("{improved}");
-                eprintln!("mode=cloud (bring-your-own-key, free)");
-            }
-            Err(error) => {
-                eprintln!("cloud request failed ({error}); falling back to the local improver");
-                println!("{}", improve_rule_based(text));
-            }
-        }
-        return Ok(());
-    }
-
-    let store = LicenseStore::new(LicenseStore::default_path()?);
-    let is_pro = store.load()?.is_some();
-    if !is_pro {
-        eprintln!(
-            "--cloud requires either TYPOMORPH_ANTHROPIC_KEY (free, bring your own key) or an active Pro license"
-        );
-        std::process::exit(2);
-    }
-
-    match client.improve(text, Backend::Managed, is_pro) {
-        Ok(improved) => {
-            println!("{improved}");
-            eprintln!("mode=cloud (managed, pro)");
-        }
-        Err(error) => {
-            eprintln!("cloud request failed ({error}); falling back to the local improver");
-            println!("{}", improve_rule_based(text));
-        }
-    }
-    Ok(())
-}
-
-fn activate_license(key: &str, instance: &str) -> Result<(), DaemonError> {
-    let client = LemonSqueezyClient::new()?;
-    let status = client.activate(key, instance)?;
-    let store = LicenseStore::new(LicenseStore::default_path()?);
-    store.save(&status)?;
-    println!("license activated; premium features enabled");
-    Ok(())
-}
-
 fn print_status() -> Result<(), DaemonError> {
-    let store = LicenseStore::new(LicenseStore::default_path()?);
-    let status = store.load()?;
-    let access = FeatureAccess::from_status(status.as_ref());
-    println!("tier: {}", if status.is_some() { "pro" } else { "free" });
-    println!("layout correction: unlimited (free for all languages)");
-    println!("developer mode: {}", access.developer_mode);
+    let preferences = settings::Store::new(settings::Store::default_path()?).load()?;
+    println!("persistent pause: {}", preferences.paused);
+    println!("sounds enabled: {}", preferences.sounds_enabled);
+    println!("automatic correction: unavailable (safe application integration pending)");
+    println!("account activation: unavailable (version 1 service integration pending)");
     Ok(())
 }
 
 fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
-    let store = LicenseStore::new(LicenseStore::default_path()?);
-    let status = store.load()?;
-    let access = FeatureAccess::from_status(status.as_ref());
-    let keyboard = MultiEvdevKeyboard::open_all()?;
-    let devices = keyboard
-        .devices()
-        .iter()
-        .map(|info| {
-            format!(
-                "{} ({}) [{:04x}:{:04x}]",
-                info.name,
-                info.path.display(),
-                info.vendor,
-                info.product
-            )
-        })
-        .collect::<Vec<_>>();
-    eprintln!(
-        "Listening on {} devices: [{}]",
-        devices.len(),
-        devices.join(", ")
-    );
-    // Diagnostic: if two entries above share the same [vendor:product], they
-    // are almost certainly the same physical dongle/keyboard exposing more
-    // than one /dev/input node (e.g. a main keyboard interface plus a
-    // separate "Consumer Control" HID collection) — confirms or rules out
-    // the duplicate-physical-device hypothesis without waiting for a repro.
+    // Must precede license I/O, accessibility setup, capture, tray and layout changes.
+    if !args.dry_run {
+        require_safe_replacement_backend()?;
+    }
+    let store = settings::Store::new(settings::Store::default_path()?);
+    let preferences = store.load()?;
+    if preferences.paused {
+        println!("paused; no input devices opened");
+        return Ok(());
+    }
+    let current_layout = args.layout;
+    let input_context = InputContext::connect().ok_or_else(|| {
+        platform_linux::PlatformError::UnsupportedBackend("AT-SPI metadata unavailable".into())
+    })?;
+    let initial_context = input_context.snapshot().ok_or_else(|| {
+        platform_linux::PlatformError::UnsupportedBackend(
+            "no eligible field metadata; input capture was not started".into(),
+        )
+    })?;
+    let mut context_guard = ContextGuard::new(Some(initial_context));
+    let mut keyboard = Some(MultiEvdevKeyboard::open_all()?);
+    eprintln!("controlled input observation started");
     let mut buffer = RingBuffer::<RING_BUFFER_CAPACITY>::new();
-    let mut scan_codes = Vec::new();
+    let mut observed_key_count = 0usize;
     let classifier = LanguageClassifier::new();
-    let prompt_detector = PromptDetector::new();
-    let mut current_layout = args.layout;
-    let mut emitter = if args.dry_run {
-        None
-    } else {
-        Some(UinputKeyboard::open()?)
-    };
-    let switcher = if args.dry_run {
-        None
-    } else {
-        Some(GnomeShellSwitcher::connect()?)
-    };
     let window_filter = ActiveWindowFilter;
-    let is_pro = status.is_some();
     let paused = Arc::new(AtomicBool::new(false));
-    tray::spawn_tray(is_pro, Arc::clone(&paused));
+    tray::spawn_tray(Arc::clone(&paused), store.clone());
 
-    eprintln!(
-        "running in {} tier; developer mode {}",
-        if status.is_some() { "pro" } else { "free" },
-        if access.developer_mode {
-            "enabled"
-        } else {
-            "disabled"
-        }
-    );
+    eprintln!("controlled diagnostic mode; corrections disabled");
 
-    let mut ctrl_held = false;
-    let mut alt_held = false;
+    let mut input_seen = false;
+    let mut held_modifiers = std::collections::HashSet::new();
 
+    let mut next_preferences = std::time::Instant::now();
     loop {
-        if paused.load(Ordering::Relaxed) {
-            std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::time::Instant::now() >= next_preferences {
+            // Any unreadable preference state ends capture via RAII rather than
+            // silently ignoring a possibly requested pause.
+            paused.store(store.load()?.paused, Ordering::SeqCst);
+            next_preferences = std::time::Instant::now() + std::time::Duration::from_millis(100);
+        }
+        if paused.load(Ordering::SeqCst) {
+            drop(keyboard.take());
+            buffer = RingBuffer::new();
+            observed_key_count = 0;
+            held_modifiers.clear();
+            context_guard.clear();
+            std::thread::sleep(std::time::Duration::from_millis(50));
             continue;
         }
-        let event = keyboard.recv().map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "all input devices closed",
-            )
-        })?;
+        if keyboard.is_none() {
+            // Resume requires fresh eligible context and creates an empty queue.
+            let Some(context) = input_context.snapshot() else {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                continue;
+            };
+            context_guard = ContextGuard::new(Some(context));
+            keyboard = Some(MultiEvdevKeyboard::open_all()?);
+        }
+        let event = match keyboard
+            .as_ref()
+            .expect("capture opened")
+            .recv_timeout(std::time::Duration::from_millis(50))
+        {
+            Ok(event) => event,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "diagnostic input stream stopped; device loss or queue overflow",
+                )
+                .into())
+            }
+        };
 
-        match event.keycode {
-            KEYCODE_LEFT_CTRL | KEYCODE_RIGHT_CTRL => {
-                ctrl_held = event.pressed;
-                continue;
+        if !input_seen {
+            report_stage(args.diagnostics, DiagnosticStage::InputReceived);
+            input_seen = true;
+        }
+
+        if event.repeat
+            || (event.pressed
+                && matches!(event.keycode, 29 | 97 | 56 | 100 | 42 | 54 | 125 | 126 | 58))
+        {
+            buffer = RingBuffer::new();
+            observed_key_count = 0;
+            context_guard.clear();
+        }
+        // Do not interpret command chords or shifted input with the prototype's
+        // unmodified letter tables; retain left/right modifier states separately.
+        if matches!(event.keycode, 29 | 97 | 56 | 100 | 42 | 54 | 125 | 126) {
+            if event.pressed {
+                held_modifiers.insert(event.keycode);
+            } else if !event.repeat {
+                held_modifiers.remove(&event.keycode);
             }
-            KEYCODE_LEFT_ALT | KEYCODE_RIGHT_ALT => {
-                alt_held = event.pressed;
-                continue;
-            }
-            KEYCODE_I if event.pressed && !event.repeat && ctrl_held && alt_held => {
-                let text = buffer.as_string();
-                if !text.is_empty() {
-                    let improved = improve_rule_based(&text);
-                    eprintln!("Prompt hotkey pressed; improved locally: {improved:?}");
-                    notify_send("TypoMorph", &format!("Improved prompt:\n{improved}"));
-                }
-                continue;
-            }
-            _ => {}
+            buffer = RingBuffer::new();
+            observed_key_count = 0;
+            context_guard.clear();
+            continue;
         }
 
         if !event.pressed || event.repeat {
             continue;
         }
         let Some(character) = keycode_to_character(event.keycode, &current_layout) else {
+            buffer = RingBuffer::new();
+            observed_key_count = 0;
+            context_guard.clear();
             continue;
         };
-        eprintln!(
-            "Key pressed: {} / {:?} [source={:?} ts={}]",
-            event.keycode, character, event.source, event.timestamp_ms
-        );
+        if !held_modifiers.is_empty() || !context_guard.observe_insertion(input_context.snapshot())
+        {
+            buffer = RingBuffer::new();
+            observed_key_count = 0;
+            if !held_modifiers.is_empty() {
+                context_guard.clear();
+            }
+            report_stage(args.diagnostics, DiagnosticStage::ContextInvalidated);
+            continue;
+        };
+
         // TODO: buffer is only ever reset on a word boundary (whitespace/punctuation),
         // never on a pause. A stray keystroke typed seconds earlier, with no boundary
         // character after it, stays in the buffer and attaches to the next word (e.g.
@@ -356,72 +318,58 @@ fn run_daemon(args: RunArgs) -> Result<(), DaemonError> {
         // class of stray-leading-character bug. Separate from the synthetic-echo fix
         // in this same commit — not yet implemented.
         if character.is_whitespace() {
-            eprintln!(
-                "Detected word boundary, analyzing buffer: {:?}",
-                buffer.as_string()
-            );
+            report_stage(args.diagnostics, DiagnosticStage::BoundaryReceived);
             if buffer.len() < 3 {
+                report_stage(args.diagnostics, DiagnosticStage::InsufficientInput);
                 buffer = RingBuffer::new();
-                scan_codes.clear();
+                observed_key_count = 0;
                 continue;
             }
 
             let decision =
                 evaluate_layout_candidates(&buffer.as_string(), &current_layout, &classifier, 0.60);
             if !decision.switch {
+                report_stage(args.diagnostics, DiagnosticStage::NoCandidate);
                 buffer = RingBuffer::new();
-                scan_codes.clear();
+                observed_key_count = 0;
                 continue;
-            }
-
-            let prompt_signal = prompt_detector.detect(&buffer.as_string());
-            if prompt_signal.is_prompt {
-                notify_send(
-                    "TypoMorph",
-                    "This looks like an AI prompt — press Ctrl+Alt+I to improve it instead of switching layout.",
-                );
             }
 
             let target_layout = decision.target_layout.expect("switch target exists");
-            if access.developer_mode && window_filter.should_bypass() {
+            let Some(_replacement) = plan_word_replacement(
+                &buffer.as_string(),
+                observed_key_count,
+                &current_layout,
+                &decision.corrected,
+                target_layout,
+                character,
+            ) else {
+                report_stage(
+                    args.diagnostics,
+                    DiagnosticStage::UnrepresentableReplacement,
+                );
                 buffer = RingBuffer::new();
-                scan_codes.clear();
+                observed_key_count = 0;
+                continue;
+            };
+            if window_filter.should_bypass() {
+                report_stage(args.diagnostics, DiagnosticStage::ExcludedApplication);
+                buffer = RingBuffer::new();
+                observed_key_count = 0;
                 continue;
             }
-            eprintln!(
-                "Triggering layout swap: {} -> {}, backspacing {} chars",
-                current_layout,
-                target_layout,
-                buffer.len()
-            );
+            report_stage(args.diagnostics, DiagnosticStage::CorrectionCandidate);
 
-            // Suppressed for the full duration of the swap + emission so that
-            // nothing arriving in this window — an echo of our own synthetic
-            // keystrokes, or a coincidental real one — reaches the next
-            // recv(). Always resumed via `emit_result`, even on error: an
-            // early `?` here would leave delivery suppressed forever.
-            keyboard.suppress_delivery();
-            let emit_result: Result<(), DaemonError> = (|| {
-                if let Some(switcher) = switcher.as_ref() {
-                    switcher.switch_to(target_layout)?;
-                    sleep(Duration::from_millis(15));
-                }
-                if let Some(emitter) = emitter.as_mut() {
-                    let replacement = replacement_keycodes(&decision.corrected, target_layout);
-                    emitter.replace_text(scan_codes.len(), &replacement)?;
-                }
-                Ok(())
-            })();
-            keyboard.resume_delivery();
-            emit_result?;
-            current_layout = target_layout.to_string();
+            // Analysis only. Never switch the physical source, suppress genuine
+            // input, or invoke the legacy sequential uinput replacement path.
+            context_guard.clear();
             buffer = RingBuffer::new();
-            scan_codes.clear();
+            observed_key_count = 0;
             continue;
         }
 
         buffer.push(character);
-        scan_codes.push(event.keycode);
+        observed_key_count = (observed_key_count + 1).min(RING_BUFFER_CAPACITY + 1);
     }
 }
 
@@ -447,15 +395,39 @@ fn xdotool_property(property: &str) -> String {
         .unwrap_or_default()
 }
 
-// Standard Linux evdev keycodes (linux/input-event-codes.h).
-const KEYCODE_LEFT_CTRL: u16 = 29;
-const KEYCODE_LEFT_ALT: u16 = 56;
-const KEYCODE_RIGHT_CTRL: u16 = 97;
-const KEYCODE_RIGHT_ALT: u16 = 100;
-const KEYCODE_I: u16 = 23;
+// Stages carry no input, keycodes, layout names, device IDs, or event timestamps.
+// A returned OS call is deliberately not described as verified text replacement.
+#[derive(Clone, Copy)]
+enum DiagnosticStage {
+    InputReceived,
+    BoundaryReceived,
+    InsufficientInput,
+    NoCandidate,
+    ExcludedApplication,
+    CorrectionCandidate,
+    UnrepresentableReplacement,
+    ContextInvalidated,
+}
 
-fn notify_send(summary: &str, body: &str) {
-    let _ = Command::new("notify-send").args([summary, body]).status();
+impl DiagnosticStage {
+    fn label(self) -> &'static str {
+        match self {
+            Self::InputReceived => "input_received",
+            Self::BoundaryReceived => "boundary_received",
+            Self::InsufficientInput => "insufficient_input",
+            Self::NoCandidate => "no_candidate",
+            Self::ExcludedApplication => "excluded_application",
+            Self::CorrectionCandidate => "correction_candidate",
+            Self::UnrepresentableReplacement => "unrepresentable_replacement",
+            Self::ContextInvalidated => "context_invalidated",
+        }
+    }
+}
+
+fn report_stage(enabled: bool, stage: DiagnosticStage) {
+    if enabled {
+        eprintln!("typomorph stage={}", stage.label());
+    }
 }
 
 fn is_developer_window(value: &str) -> bool {

@@ -2,7 +2,7 @@
 
 ## Current status
 
-TypoMorph is a Linux prototype with approved replacement requirements, not a verified secure cross-platform release. The diagnostic daemon currently prints input characters/buffers to stderr, which a service manager may retain. Legacy prompt commands and browser actions still include optional network text paths.
+TypoMorph is a Linux prototype with approved replacement requirements, not a verified secure cross-platform release. The installed 0.2.2 diagnostic daemon can print input characters/buffers to stderr, which a service manager may retain. The P0 working copy removes these live-path outputs; it has not replaced the installed application. The working build now removes legacy prompt/cloud entry points; historical source is excluded. Browser integration is readiness-only and cannot correct text. Input-bearing Debug output is redacted.
 
 These are implementation gaps, not approved release behavior. See [PRIVACY.md](docs/PRIVACY.md) for the data boundary and [ARCHITECTURE.md](docs/ARCHITECTURE.md) for source evidence. Use synthetic input for authorized development checks.
 
@@ -22,7 +22,7 @@ OS-controlled memory copies, metadata retention, service security, and signing/k
 
 ## Distribution and verification
 
-The existing [release workflow](.github/workflows/release.yml) is configured to sign Debian-release checksum metadata using cosign. No artifact has been downloaded or verified during documentation work. The current website installer checks checksums and is not the approved signed updater.
+The existing [release workflow](.github/workflows/release.yml) is configured to sign Debian-release checksum metadata using cosign. No artifact has been downloaded or verified during documentation work. The working-copy installer now requires an exact Sigstore workflow/tag identity and package checksum before installation, with no automatic startup. It has only mocked orchestration evidence, not certification of a real artifact or a complete updater; see [DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
 The target distribution requires authenticated Debian packages, a signed Windows installer, and a signed/notarized macOS application. Exact verification procedures and identities must be documented alongside the actual release artifacts after implementation. See [TESTING.md](docs/TESTING.md).
 

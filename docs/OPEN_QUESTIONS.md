@@ -42,7 +42,7 @@ Email login link/code choice is an implementation detail within the approved pas
 | Raw-key/injection approach diverges from real text state | Wrong-field edits, missed input, or corrupt replacement/undo | Validate context and races end to end; abstain when unsafe |
 | Six languages across several layouts and OS families | Larger test matrix and false-correction surface than profile count suggests | Track exact directions/variants and reject pooled-only accuracy evidence |
 | Linux core bug unresolved; Windows/macOS absent | No current basis for a release date or support claim | Reproduce first, build missing adapters under approved plan, record real-device results |
-| Legacy text logging and cloud code remain reachable | Current prototype is incompatible with privacy promises | Keep status explicit; remove or isolate under authorized implementation, then verify |
+| Installed legacy build unchanged; protected-field safety unresolved | Working build removes cloud routes/logging but cannot yet claim full privacy compliance | Validate the final application adapters and shipped artifacts; do not infer from isolated tests |
 | Low prices and lifetime updates | Fees, taxes, multi-OS upkeep, and support can consume proceeds | Measure real operating costs; do not assume maintenance is negligible or silently change pricing |
 | Offline perpetual access | Revocation after transfer/refund cannot be immediate | Accepted product trade-off; disclose accurately and avoid hidden online enforcement |
 | Billing/service outage or clock changes | Activation/renewal ambiguity | Design recovery while preserving confirmed offline rights |

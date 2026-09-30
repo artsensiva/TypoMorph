@@ -3,189 +3,135 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="TypoMorph is an intelligent cross-platform input daemon with zero telemetry and sub-millisecond local classification.">
-  <meta name="theme-color" content="#0b0d12">
-  <title>TypoMorph | Intelligent input, kept local</title>
+  <meta name="description" content="TypoMorph is developing private, local keyboard-layout correction for multilingual writing. Version 1 is in development; downloads and purchases are not yet available.">
+  <meta name="theme-color" content="#101410">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <title>TypoMorph — Stay with your words</title>
   <style>
-    :root {
-      --bg: #0b0d12;
-      --panel: #12161e;
-      --panel-2: #171c26;
-      --line: #293140;
-      --text: #f3f0e8;
-      --muted: #a5adba;
-      --lime: #c7f36b;
-      --cyan: #78e5dc;
-      --orange: #ff9e64;
-      --shadow: 0 22px 70px rgba(0, 0, 0, .3);
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      color: var(--text);
-      background: var(--bg);
-      font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      z-index: -2;
-      background: radial-gradient(circle at 75% 8%, rgba(120, 229, 220, .11), transparent 32rem),
-                  radial-gradient(circle at 10% 42%, rgba(199, 243, 107, .07), transparent 28rem),
-                  linear-gradient(135deg, #0b0d12 0%, #0e1118 48%, #11151b 100%);
-    }
-    body::after {
-      content: "";
-      position: fixed;
-      inset: 0;
-      z-index: -1;
-      opacity: .12;
-      pointer-events: none;
-      background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
-      background-size: 42px 42px;
-      mask-image: linear-gradient(to bottom, black, transparent 75%);
-    }
-    a { color: inherit; }
-    .wrap { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
-    header { padding: 24px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
-    .nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .brand { display: inline-flex; align-items: center; gap: 11px; text-decoration: none; font-weight: 800; letter-spacing: .02em; }
-    .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; color: var(--bg); background: var(--lime); font-weight: 900; transform: rotate(-8deg); }
-    .nav-links { display: flex; gap: 22px; color: var(--muted); font-size: .92rem; }
-    .nav-links a { text-decoration: none; }
-    .nav-links a:hover { color: var(--text); }
-    .eyebrow { color: var(--lime); text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; font-weight: 800; }
-    .hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 70px; align-items: end; padding: 105px 0 92px; }
-    h1, h2, h3, p { margin-top: 0; }
-    h1 { max-width: 760px; margin-bottom: 24px; font-size: clamp(3.4rem, 8vw, 7.7rem); line-height: .9; letter-spacing: -.065em; }
-    h1 span { color: var(--lime); }
-    .lede { max-width: 620px; margin-bottom: 32px; color: var(--muted); font-size: 1.18rem; }
-    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
-    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 18px; border: 1px solid var(--lime); color: var(--bg); background: var(--lime); text-decoration: none; font-weight: 800; cursor: pointer; }
-    .button.secondary { color: var(--text); background: transparent; border-color: var(--line); }
-    .button:hover { filter: brightness(1.08); transform: translateY(-1px); }
-    .signal { border-left: 1px solid var(--cyan); padding: 20px 0 20px 26px; }
-    .signal strong { display: block; margin-bottom: 14px; color: var(--cyan); font: 700 2.8rem/.95 Georgia, serif; }
-    .signal p { margin: 0; color: var(--muted); }
-    section { padding: 74px 0; }
-    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 30px; }
-    h2 { max-width: 600px; margin-bottom: 0; font-size: clamp(2rem, 4vw, 3.6rem); line-height: .98; letter-spacing: -.045em; }
-    .section-head p { max-width: 360px; margin-bottom: 0; color: var(--muted); }
-    .features { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
-    .feature { min-height: 190px; padding: 25px 22px 20px 0; border-bottom: 1px solid var(--line); }
-    .feature + .feature { padding-left: 22px; border-left: 1px solid var(--line); }
-    .feature b { display: block; margin-bottom: 28px; color: var(--orange); font-size: 1.4rem; }
-    .feature h3 { margin-bottom: 8px; font-size: 1.05rem; }
-    .feature p { margin: 0; color: var(--muted); font-size: .92rem; }
-    .download-shell { display: grid; grid-template-columns: .72fr 1.28fr; gap: 30px; align-items: stretch; }
-    .download-copy { padding: 28px 0; }
-    .download-copy p { color: var(--muted); }
-    .tabs { display: inline-flex; gap: 4px; padding: 4px; margin: 22px 0; border: 1px solid var(--line); background: var(--panel); }
-    .tab { border: 0; padding: 10px 15px; color: var(--muted); background: transparent; font: inherit; cursor: pointer; }
-    .tab[aria-selected="true"] { color: var(--bg); background: var(--lime); font-weight: 800; }
-    .download-panel { display: none; padding: 28px; border: 1px solid var(--line); background: rgba(18, 22, 30, .86); box-shadow: var(--shadow); }
-    .download-panel.active { display: block; animation: rise .35s ease both; }
-    .platform-label { margin-bottom: 16px; color: var(--cyan); font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; }
-    .download-panel h3 { margin-bottom: 7px; font-size: 1.7rem; }
-    .download-panel p { color: var(--muted); }
-    pre { position: relative; overflow: auto; margin: 22px 0; padding: 17px; border: 1px solid var(--line); color: #d7e3d4; background: #090b0f; font: .86rem/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    pre code { white-space: pre-wrap; }
-    .copy { position: absolute; top: 8px; right: 8px; border: 1px solid var(--line); padding: 5px 8px; color: var(--muted); background: var(--panel); cursor: pointer; }
-    .copy:hover { color: var(--text); border-color: var(--cyan); }
-    .pricing { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; max-width: 860px; }
-    .price-card { padding: 28px; border: 1px solid var(--line); background: var(--panel); }
-    .price-card.featured { border-color: var(--lime); background: linear-gradient(140deg, rgba(199,243,107,.1), var(--panel)); }
-    .price-card h3 { margin-bottom: 8px; font-size: 1.35rem; }
-    .price { margin-bottom: 18px; font: 700 2.6rem/.95 Georgia, serif; }
-    .price small { color: var(--muted); font: 400 .9rem ui-sans-serif, system-ui, sans-serif; }
-    .price-card ul { min-height: 112px; padding-left: 18px; color: var(--muted); }
-    footer { padding: 28px 0 50px; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
-    .footer-row { display: flex; justify-content: space-between; gap: 20px; }
-    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    @media (max-width: 820px) {
-      .nav-links { display: none; }
-      .hero, .download-shell { grid-template-columns: 1fr; gap: 28px; }
-      .hero { padding: 70px 0; }
-      .features { grid-template-columns: repeat(2, 1fr); }
-      .feature:nth-child(3) { border-left: 0; padding-left: 0; }
-      .feature:nth-child(n+3) { border-top: 1px solid var(--line); }
-    }
-    @media (max-width: 560px) {
-      .wrap { width: min(100% - 28px, 1160px); }
-      h1 { font-size: 4rem; }
-      .features, .pricing { grid-template-columns: 1fr; }
-      .feature, .feature + .feature { padding: 22px 0; border-left: 0; }
-      .feature + .feature { border-top: 1px solid var(--line); }
-      .section-head, .footer-row { display: block; }
-      .section-head p { margin-top: 16px; }
-      .tabs { display: flex; width: 100%; }
-      .tab { flex: 1; padding-inline: 7px; }
-    }
+    :root { color-scheme: dark; --bg:#101410; --panel:#191f19; --ink:#f0f3e9; --muted:#b2bdad; --accent:#d0f694; --line:#384334; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    a { color:inherit; text-underline-offset:.22em; }
+    a:focus-visible,summary:focus-visible { outline:3px solid var(--accent); outline-offset:6px; }
+    .wrap { width:min(1120px,calc(100% - 48px)); margin:auto; }
+    .notice { padding:10px 24px; background:var(--accent); color:#17220d; text-align:center; font-size:14px; font-weight:650; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:24px; padding:27px 0; border-bottom:1px solid var(--line); }
+    .brand { font-size:24px; font-weight:750; letter-spacing:-1px; text-decoration:none; }
+    .brand span { color:var(--accent); }
+    nav { display:flex; gap:25px; font-size:14px; }
+    nav a { text-decoration:none; }
+    nav a:hover { text-decoration:underline; }
+    .hero { display:grid; grid-template-columns:1.15fr 1fr; align-items:center; gap:70px; padding:92px 0 100px; }
+    .eyebrow { color:var(--accent); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.15em; }
+    h1 { font-size:clamp(44px,6.3vw,76px); line-height:1.06; letter-spacing:-.055em; margin:20px 0 26px; font-weight:650; }
+    h2 { font-size:clamp(28px,4vw,42px); line-height:1.18; letter-spacing:-.035em; margin:0 0 20px; font-weight:600; }
+    h3 { font-size:20px; line-height:1.3; margin:0 0 12px; }
+    p { margin:0 0 20px; color:var(--muted); }
+    .lead { font-size:20px; max-width:32em; }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; margin:28px 0 18px; }
+    .button { display:inline-block; border:1px solid var(--accent); padding:12px 20px; border-radius:8px; background:var(--accent); color:#17220d; text-decoration:none; font-size:15px; font-weight:700; }
+    .button.secondary { background:transparent; color:var(--ink); border-color:var(--line); }
+    .small { font-size:13px; }
+    .demo { padding:30px; border:1px solid var(--line); border-radius:18px; background:linear-gradient(145deg,#263123,var(--panel)); }
+    .demo-label { display:flex; justify-content:space-between; gap:12px; margin-bottom:38px; color:var(--muted); font-size:12px; }
+    .demo-word { font:clamp(30px,4.5vw,52px)/1.25 ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:-.03em; overflow-wrap:anywhere; }
+    .demo-word.original { color:#b2bdad; }
+    .arrow { margin:16px 0; color:var(--accent); font-size:27px; }
+    .demo-word.corrected { color:var(--accent); }
+    .demo-note { font-size:13px; margin:32px 0 0; border-top:1px solid var(--line); padding-top:18px; }
+    section { padding:66px 0; border-top:1px solid var(--line); scroll-margin-top:24px; }
+    .section-intro { max-width:690px; margin-bottom:30px; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+    .card { padding:28px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+    .card p:last-child { margin-bottom:0; }
+    .number { font:13px ui-monospace,monospace; color:var(--accent); margin-bottom:26px; }
+    .languages { display:flex; gap:10px; flex-wrap:wrap; margin:24px 0; }
+    .languages span { padding:7px 14px; border:1px solid var(--line); border-radius:30px; font-size:14px; }
+    .status { display:grid; grid-template-columns:1fr 1.2fr; gap:60px; }
+    .status-row { padding:18px 0; border-bottom:1px solid var(--line); }
+    .status-row:first-child { padding-top:0; }
+    .status-row h3 { font-size:17px; }
+    .status-row p { margin:0; font-size:15px; }
+    .tag { display:inline-block; margin-bottom:14px; padding:4px 10px; border:1px solid var(--line); border-radius:5px; color:var(--accent); font-size:12px; }
+    .price { font-size:44px; line-height:1.2; letter-spacing:-.04em; margin:22px 0; }
+    .price span { font-size:15px; letter-spacing:0; color:var(--muted); }
+    .price-card { display:flex; flex-direction:column; }
+    .price-card .availability { margin-top:auto; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted); }
+    .featured { border-color:var(--accent); }
+    details { padding:22px 0; border-bottom:1px solid var(--line); }
+    summary { cursor:pointer; font-size:18px; font-weight:600; }
+    details p { margin:16px 0 0; max-width:760px; }
+    footer { display:flex; justify-content:space-between; gap:24px; padding:34px 0 50px; font-size:13px; color:var(--muted); }
+    .skip { position:absolute; top:-100px; left:20px; background:var(--accent); color:#17220d; padding:10px; z-index:1; }
+    .skip:focus { top:12px; }
+    @media(max-width:800px) { .hero { grid-template-columns:1fr; gap:36px; padding:54px 0; } .demo { max-width:540px; } .grid { grid-template-columns:1fr; } .status { grid-template-columns:1fr; gap:26px; } section { padding:44px 0; } }
+    @media(max-width:480px) { .wrap { width:calc(100% - 32px); } header { align-items:flex-start; flex-direction:column; gap:14px; } nav { gap:20px; flex-wrap:wrap; } footer { flex-direction:column; } .demo { padding:24px; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
   </style>
 </head>
 <body>
-  <header>
-    <div class="wrap nav">
-      <a class="brand" href="#top"><span class="brand-mark">T</span> TypoMorph</a>
-      <nav class="nav-links" aria-label="Primary"><a href="#download">Download</a><a href="#features">Why TypoMorph</a><a href="#pricing">Pro</a></nav>
-      <a class="button secondary" href="#download">Get started</a>
-    </div>
-  </header>
-  <main id="top">
-    <div class="wrap hero">
-      <div>
-        <div class="eyebrow">Intelligent cross-platform input daemon</div>
-        <h1>Type freely.<br><span>Stay local.</span></h1>
-        <p class="lede">TypoMorph catches layout mistakes and corrects them at the source. Zero telemetry, local in-memory processing, and sub-millisecond classification for multilingual work.</p>
-        <div class="actions"><a class="button" href="#download">Choose your platform</a><a class="button secondary" href="#features">See the architecture</a></div>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="notice">Version 1 is in development. Downloads and purchases are not yet available.</div>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="#main" aria-label="TypoMorph home">Typo<span>Morph</span></a>
+      <nav aria-label="Main navigation"><a href="#approach">Approach</a><a href="#status">Progress</a><a href="#pricing">Planned pricing</a></nav>
+    </header>
+    <main id="main">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">For words that cross languages</div>
+          <h1>Stay with<br>your words.</h1>
+          <p class="lead">Wrong keyboard layout. Right thought. TypoMorph is being built to correct layout mistakes while you write, with text processing kept on your computer.</p>
+          <div class="actions"><a class="button" href="#status">See development progress</a><a class="button secondary" href="https://github.com/artsensiva/TypoMorph/tree/diagnostic/device-echo-investigation">Explore on GitHub ↗</a></div>
+          <p class="small">An independent project. No download required to follow along.</p>
+        </div>
+        <div class="demo" aria-label="Illustrative conversion from ghbdtn to the Russian word привет">
+          <div class="demo-label"><span>A layout mistake</span><span>EN → RU</span></div>
+          <div class="demo-word original">ghbdtn</div>
+          <div class="arrow" aria-hidden="true">↓</div>
+          <div class="demo-word corrected" lang="ru">привет</div>
+          <p class="demo-note">Illustrative conversion. The local simulator can produce this result; correction inside everyday applications is still under development.</p>
+        </div>
       </div>
-      <div class="signal"><strong>32 tokens.<br>0 cloud calls.</strong><p>A bounded Rust engine watches the smallest useful context, then gets out of the way. Your keystrokes stay on your machine.</p></div>
-    </div>
-
-    <section id="features"><div class="wrap">
-      <div class="section-head"><h2>A quieter layer between your hands and your screen.</h2><p>Built for writers, developers, and teams who move between languages without wanting another cloud service in the loop.</p></div>
-      <div class="features">
-        <article class="feature"><b>01</b><h3>Real-time correction</h3><p>Detects a wrong layout while you type and restores the intended text with a guarded switch.</p></article>
-        <article class="feature"><b>02</b><h3>True local privacy</h3><p>No raw keystroke retention, telemetry, or remote language decisions. The working buffer is volatile.</p></article>
-        <article class="feature"><b>03</b><h3>Native Rust engine</h3><p>A bounded ring buffer and lightweight n-gram scoring keep the critical path fast and predictable.</p></article>
-        <article class="feature"><b>04</b><h3>No cloud dependencies</h3><p>Offline classification works without accounts or network access. Premium licensing is optional.</p></article>
-      </div>
-    </div></section>
-
-    <section id="download"><div class="wrap download-shell">
-      <div class="download-copy"><div class="eyebrow">Get TypoMorph</div><h2>One daemon. Every desktop.</h2><p>Select your operating system for the right package and the shortest path to a working input layer.</p><div class="tabs" role="tablist" aria-label="Operating systems"><button class="tab" role="tab" aria-selected="true" data-platform="linux">Linux</button><button class="tab" role="tab" aria-selected="false" data-platform="macos">macOS</button><button class="tab" role="tab" aria-selected="false" data-platform="windows">Windows</button></div></div>
-      <div>
-        <article class="download-panel active" data-panel="linux"><div class="platform-label">Linux / Ubuntu · X11 and Wayland</div><h3>Install the native package.</h3><p>Includes udev access rules and a systemd user service. No manual root setup is needed after package installation.</p><a class="button" href="downloads/typomorph_0.2.2-1_amd64.deb" download>Download .deb</a><pre><button class="copy" type="button" aria-label="Copy Linux install command">copy</button><code>curl -sSL https://raw.githubusercontent.com/artsensiva/TypoMorph/main/landing/install.sh | bash</code></pre><p>After installation: <code>systemctl --user enable --now typomorph.service</code></p><p class="verify-hint">Verify this download (<a href="downloads/SHA256SUMS">SHA256SUMS</a>, <a href="downloads/SHA256SUMS.sig">.sig</a>, <a href="downloads/SHA256SUMS.pem">.pem</a> are in the same folder) — see <a href="https://github.com/artsensiva/TypoMorph#verifying-releases">README: Verifying releases</a>:</p><pre><button class="copy" type="button" aria-label="Copy verification commands">copy</button><code>cosign verify-blob --certificate SHA256SUMS.pem --signature SHA256SUMS.sig --certificate-identity-regexp "https://github.com/artsensiva/TypoMorph/.github/workflows/release.yml@.*" --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS &amp;&amp; sha256sum -c SHA256SUMS</code></pre></article>
-        <article class="download-panel" data-panel="macos"><div class="platform-label">macOS · Apple Silicon and Intel</div><h3>Install the signed app.</h3><p>The macOS package is staged for the next notarized release. Replace the placeholder asset before publishing.</p><a class="button" href="downloads/TypoMorph-macOS.dmg" download>Download .dmg</a><pre><button class="copy" type="button" aria-label="Copy Homebrew command">copy</button><code>brew install typomorph/tap/typomorph</code></pre></article>
-        <article class="download-panel" data-panel="windows"><div class="platform-label">Windows · x64</div><h3>Install for your workstation.</h3><p>The MSI asset is staged for the next signed release. Replace the placeholder before publishing.</p><a class="button" href="downloads/TypoMorph-Setup.msi" download>Download .msi</a><pre><button class="copy" type="button" aria-label="Copy winget command">copy</button><code>winget install TypoMorph.TypoMorph</code></pre></article>
-      </div>
-    </div></section>
-
-    <section id="pricing"><div class="wrap"><div class="section-head"><h2>Free to trust. Pro to go further.</h2><p>Keep the fast two-language core free. Unlock the workflows that belong in a serious multilingual toolkit.</p></div><div class="pricing">
-      <article class="price-card"><h3>Community Edition</h3><div class="price">Free</div><ul><li>English and Russian switching</li><li>Local in-memory processing</li><li>Linux package and daemon</li></ul><a class="button secondary" href="#download">Download free</a></article>
-      <article class="price-card featured"><h3>Lifetime Pro License</h3><div class="price">$39 <small>one-time</small></div><ul><li>Unlimited language profiles</li><li>Developer Mode and editor safety</li><li>Priority updates and support</li></ul><a class="button" href="https://typomorph.lemonsqueezy.com/" rel="noopener">Get Pro license</a></article>
-    </div></div></section>
-  </main>
-  <footer><div class="wrap footer-row"><span>© 2026 TypoMorph Team</span><span>Local by design · Rust under the hood</span></div></footer>
-  <script>
-    (() => {
-      const tabs = [...document.querySelectorAll('.tab')];
-      const panels = [...document.querySelectorAll('.download-panel')];
-      const select = (platform) => {
-        tabs.forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.platform === platform)));
-        panels.forEach(panel => panel.classList.toggle('active', panel.dataset.panel === platform));
-      };
-      tabs.forEach(tab => tab.addEventListener('click', () => select(tab.dataset.platform)));
-      const ua = `${navigator.userAgent} ${navigator.userAgentData?.platform || ''}`.toLowerCase();
-      select(ua.includes('win') ? 'windows' : ua.includes('mac') || ua.includes('iphone') || ua.includes('ipad') ? 'macos' : 'linux');
-      document.querySelectorAll('.copy').forEach(button => button.addEventListener('click', async () => {
-        const code = button.parentElement.querySelector('code').textContent;
-        try { await navigator.clipboard.writeText(code); button.textContent = 'copied'; setTimeout(() => button.textContent = 'copy', 1300); }
-        catch { button.textContent = 'select manually'; setTimeout(() => button.textContent = 'copy', 1300); }
-      }));
-    })();
-  </script>
+      <section id="approach">
+        <div class="section-intro"><div class="eyebrow">The first-release plan</div><h2>Less interruption.<br>More control.</h2><p>These are the requirements we are building toward. They are not claims that the current prototype is ready for everyday use.</p></div>
+        <div class="grid">
+          <article class="card"><div class="number">01 / Local by design</div><h3>Your typing stays yours.</h3><p>Planned release processing uses transient memory, with no typed-text uploads, input logs or automatic telemetry. Account and payment services are separate from text processing.</p></article>
+          <article class="card"><div class="number">02 / Careful correction</div><h3>Change only what is safe.</h3><p>Correct confident layout mistakes, leave uncertain text alone, and refuse protected or unknown fields. Manual correction and safe undo are part of the plan.</p></article>
+          <article class="card"><div class="number">03 / Your preferences</div><h3>Keep the controls close.</h3><p>Choose supported layouts, pause correction, exclude applications and control optional sounds. Sounds will be off by default; autostart will require your consent.</p></article>
+        </div>
+        <div class="languages" aria-label="Planned input and interface languages"><span>English</span><span>Russian</span><span>Ukrainian</span><span>German</span><span>French</span><span>Spanish</span></div>
+        <p class="small">Six planned languages. Exact supported keyboard layouts and platform compatibility still need complete implementation and validation.</p>
+      </section>
+      <section id="status" class="status">
+        <div><span class="tag">Development status · 1 October 2026</span><h2>Safety first.<br>Then a public release.</h2><p>Linux integration is the current focus. Automatic correction remains disabled in the development build until text replacement can safely handle focus changes and new input.</p><a href="https://github.com/artsensiva/TypoMorph/blob/diagnostic/device-echo-investigation/docs/PROJECT_STATE.md">Read the development checkpoint ↗</a></div>
+        <div>
+          <div class="status-row"><h3>Implemented and tested in isolation</h3><p>Local conversion simulation, preference storage, offline license verification, and an experimental GTK text transaction with undo and targeted reversal.</p></div>
+          <div class="status-row"><h3>Still being built</h3><p>Safe correction in Text Editor and browsers, complete layout coverage, the settings interface, account activation and checkout. Toolkit test results do not establish working application support.</p></div>
+          <div class="status-row"><h3>Platform targets</h3><p>Ubuntu GNOME on Wayland and X11, Windows 11, and macOS on Intel and Apple Silicon. Windows and macOS adapters are not yet implemented.</p></div>
+          <div class="status-row"><h3>Release timing</h3><p>There is no fixed launch date. Version 1 will ship when its required functionality and safety checks pass.</p></div>
+        </div>
+      </section>
+      <section id="pricing">
+        <div class="section-intro"><div class="eyebrow">Planned pricing · USD</div><h2>One product. Two ways to keep it.</h2><p>Start with a seven-day trial without a payment card. Both paid options are planned to include the same features and up to three computers on one account.</p></div>
+        <div class="grid">
+          <article class="card price-card"><h3>Try it first</h3><div class="price">7 <span>days</span></div><p>One account-wide trial. No card required and no automatic charge when the trial ends.</p><div class="availability">Available after launch</div></article>
+          <article class="card price-card"><h3>Annual</h3><div class="price">$7 <span>/ year</span></div><p>All released updates while subscribed. Automatic annual renewal only with your explicit agreement when purchasing.</p><div class="availability">Checkout is not yet available</div></article>
+          <article class="card price-card featured"><h3>Perpetual</h3><div class="price">$19 <span>once</span></div><p>A perpetual license with the same features and all future released updates. One payment; no subscription renewal.</p><div class="availability">Checkout is not yet available</div></article>
+        </div>
+        <p class="small" style="margin-top:20px">Planned prices include applicable taxes. Payments will be in USD. No purchase, signup or payment collection is available on this page.</p>
+      </section>
+      <section aria-labelledby="questions-title">
+        <h2 id="questions-title">A few things to know.</h2>
+        <details><summary>Can I install TypoMorph now?</summary><p>Version 1 is not ready. Older prototype packages are not recommended for everyday use and do not meet the approved release requirements. Developers can inspect the repository and use its device-free simulator with synthetic text.</p></details>
+        <details><summary>Does it use AI or send my writing to a server?</summary><p>The approved product uses local layout detection and conversion. AI prompt improvement and spelling correction are outside version 1. The release must not transmit or persist typed content. This is a release requirement, not a privacy certification for older prototypes.</p></details>
+        <details><summary>Will I need a browser extension?</summary><p>Native browser coverage is the first goal. Extensions are conditional on demonstrated need; the existing extension code does not provide text correction.</p></details>
+        <details><summary>Where can I follow development?</summary><p>The <a href="https://github.com/artsensiva/TypoMorph/tree/diagnostic/device-echo-investigation">development branch on GitHub</a> records implementation, test evidence and remaining blockers. No newsletter signup or tracking script is needed.</p></details>
+      </section>
+    </main>
+    <footer><span>TypoMorph · An independent software project</span><span><a href="https://github.com/artsensiva/TypoMorph/blob/diagnostic/device-echo-investigation/docs/PRIVACY.md">Privacy requirements</a> · <a href="https://github.com/artsensiva/TypoMorph/tree/diagnostic/device-echo-investigation">Source &amp; progress</a></span></footer>
+  </div>
 </body>
 </html>

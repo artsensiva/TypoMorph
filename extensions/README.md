@@ -10,22 +10,25 @@ See [COMPATIBILITY.md](../docs/COMPATIBILITY.md) and [OPEN_QUESTIONS.md](../docs
 
 ## Current implementation
 
-The extensions send selected text through Native Messaging to the local `typomorph-native-host` process. That host runs independently of the daemon. This is not an implemented shared settings, pause, safety, and entitlement lifecycle.
+The extension popups send only `{ "action": "status" }` to the local host. Their
+manifests request only `nativeMessaging`; no page scripts, selection extraction,
+context-menu correction, credential storage, or AI/cloud controls remain.
 
-Legacy actions include layout correction and prompt improvement. Popup controls still expose Free/Pro and cloud/API-key behavior; optional cloud paths can transmit selected text. Those features do not match the approved release product or privacy boundary.
-
-Current manifests request `nativeMessaging`, `contextMenus`, `activeTab`, `scripting`, and `storage`. The existing selected-text action uses on-demand page access. This inventory does not prove that protected fields and every editable context satisfy the new safety requirements.
+The host enforces a 4 KiB frame bound and returns fixed content-free responses.
+`correction_available` is always false. Missing/stopped desktop integration does
+not enable standalone correction. Browser-spawned host readiness is not proof
+that the desktop application is running or that a shared lifecycle exists.
 
 ## Controlled local development
 
-Only use synthetic selected text when testing this legacy code. Existing instructions are for development, not supported end-user installation.
+This readiness-only code does not read or correct selected text. Existing instructions are for development, not supported end-user installation.
 
 1. Build the host with `cargo build --release -p native-host`.
 2. Register a browser-specific Native Messaging manifest pointing to the actual `typomorph-native-host` executable.
 3. For Chrome/Edge, load `extensions/chrome/` through the browser's unpacked-extension developer interface.
 4. Match the assigned extension ID in the host manifest's `allowed_origins`.
 5. For Firefox, load `extensions/firefox/manifest.json` through its temporary-add-on interface and match its ID in `allowed_extensions`.
-6. Reload after manifest changes and verify the local host connection using synthetic input.
+6. Reload after manifest changes and verify the status-only local host connection.
 
 The current Debian packaging includes native-host manifests with placeholder extension IDs. A package installation alone therefore does not establish a working browser connection. Firefox's current source ID is `typomorph@example.com`; production identity/signing and persistent delivery remain release-design work.
 
