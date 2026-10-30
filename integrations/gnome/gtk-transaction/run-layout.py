@@ -1,10 +1,29 @@
 #!/usr/bin/env python3
-"""Build and run fixed layout-refusal tests against the disposable GTK archive."""
+"""Build and run fixed layout transaction tests against the disposable GTK archive."""
 import argparse
 from pathlib import Path
 import shlex
 import subprocess
 import tempfile
+
+
+def build_probe(build, source, obj, binary, test):
+    flags = shlex.split(subprocess.check_output(
+        ['pkg-config', '--cflags', 'gtk4'], text=True, timeout=10))
+    subprocess.run([
+        '/usr/bin/gcc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+        '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
+        '-I' + str(build), '-I' + str(source), '-I' + str(source / 'gtk'), *flags, '-c',
+        str(test), '-o', str(obj),
+    ], check=True, timeout=30)
+    # Private GTK symbols require the same archive dependencies as its tests.
+    commands = subprocess.check_output(
+        ['ninja', '-t', 'commands', 'testsuite/gtk/textbuffer'],
+        cwd=build, text=True, timeout=10)
+    link = shlex.split(commands.splitlines()[-1])
+    link[link.index('-o') + 1] = str(binary)
+    link[link.index('testsuite/gtk/textbuffer.p/textbuffer.c.o')] = str(obj)
+    subprocess.run(link, cwd=build, check=True, timeout=30)
 
 
 def main():
@@ -20,22 +39,7 @@ def main():
         root = Path(directory)
         obj = root / 'test.o'
         binary = root / 'test-layout'
-        flags = shlex.split(subprocess.check_output(
-            ['pkg-config', '--cflags', 'gtk4'], text=True, timeout=10))
-        subprocess.run([
-            '/usr/bin/gcc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-            '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
-            '-I' + str(build), '-I' + str(source), *flags, '-c',
-            str(Path(__file__).with_name('test-layout.c')), '-o', str(obj),
-        ], check=True, timeout=30)
-        # Private GTK symbols require the same archive dependencies as its tests.
-        commands = subprocess.check_output(
-            ['ninja', '-t', 'commands', 'testsuite/gtk/textbuffer'],
-            cwd=build, text=True, timeout=10)
-        link = shlex.split(commands.splitlines()[-1])
-        link[link.index('-o') + 1] = str(binary)
-        link[link.index('testsuite/gtk/textbuffer.p/textbuffer.c.o')] = str(obj)
-        subprocess.run(link, cwd=build, check=True, timeout=30)
+        build_probe(build, source, obj, binary, Path(__file__).with_name('test-layout.c'))
         env = {
             'PATH': '/usr/bin:/bin', 'HOME': directory, 'LC_ALL': 'C.UTF-8',
             'XDG_CONFIG_HOME': directory, 'XDG_CACHE_HOME': directory,

@@ -111,3 +111,106 @@ was reproduced again after adding the separate runner mode. Keep separate the en
 client/compositor behavior, and final deployment requirements. No upstream report,
 system patch, forced environment setting or release-scope reduction is authorized
 by this result. Protected/unknown input collection still needs its own audit.
+
+## Stale text-input-v3 edit characterization (2026-10-29)
+
+Question: when an input method's deletion and commit were computed from an
+earlier view of a field, does a stock GTK4 client apply or reject them, and does
+the `done` serial protect it? **Result: the client applies them, the serial does
+not protect, and wrong-content and wrong-target mutation were reproduced.** This
+is a finite synthetic fixture. It is not a safety result, says nothing about
+Chrome, Firefox or other toolkits, and is not a decision on any workaround.
+
+### Path and schedule
+
+- Client: the system GTK 4.22.4 (`/usr/lib/x86_64-linux-gnu`, unpatched; the test
+  prints the mapped library path) `Gtk.Text` with its `GtkIMContextWayland`,
+  speaking `zwp_text_input_v3` version 1 to GNOME Shell 50.1 (Mutter) running
+  headless, then the private IBus 1.5.34-rc2.
+- Engine: the test-only `integrations/ibus/stale_edit_fixture.py`. It records the
+  surrounding text the client reports, keeps one snapshot, and on request sends
+  `delete_surrounding_text(-6, 6)` plus `commit_text("привет")` computed from that
+  snapshot, whatever the field holds then. It handles no key events.
+- Harness: `integrations/gnome/tests/test_stale_text_input.py`, run with
+  `run_wayland_probe.py --stale-text-input [--case NAME]`. Field `a` = `xx ghbdtn`
+  with the cursor at the end, field `b` = `keep`. Evidence is the client's own
+  `WAYLAND_DEBUG` trace, kept inside the private session directory. Waits are
+  condition-driven with deadlines (trace events, engine acknowledgement, socket
+  byte counts), not sleeps used to create a race.
+- Matched-serial schedules: change the field, publish the change the way GTK does
+  (`gtk_im_context_reset()`), wait until the engine reports the new state, then
+  send the stale request. In-flight schedules: let the request reach the client
+  socket without reading it (`FIONREAD` on the socket identified by peer PID),
+  change and publish the field, and only then dispatch events. The trace showed the
+  client's next `commit` queued before the `done`, which carried an older serial.
+
+### Observed (all 27 fresh-session runs agreed; 3 full-suite runs agreed)
+
+| Case | Serial at `done` | Delete event reached client | Final `a` / `b` | Outcome |
+| --- | --- | --- | --- | --- |
+| control_unchanged | match | yes | `xx привет` / `keep` | exact replacement (control) |
+| cursor_moved (cursor to 2) | match | **no** | `xxпривет ghbdtn` / `keep` | **corruption**: commit inserted mid-field, original word kept |
+| prefix_inserted | match | yes | `QQxx привет` / `keep` | exact replacement |
+| word_changed (`ghbdtx`) | match | yes | `xx привет` / `keep` | **corruption**: a different word replaced |
+| other_field (focus to `b`) | match | **no** | `xx ghbdtn` / `keepпривет` | **corruption**: commit into the wrong field |
+| selection_over_word | match | yes | `xx привет` / `keep` | exact replacement |
+| inflight_cursor_moved | **mismatch** (9 vs client 10) | yes | `xxпривет ghbdtn` / `keep` | **corruption** |
+| inflight_prefix_inserted | **mismatch** | yes | `QQxx привет` / `keep` | exact replacement |
+| inflight_word_changed | **mismatch** | yes | `xx привет` / `keep` | **corruption** |
+
+Four checks pass and five **fail**; the harness exits 1. The failures are retained
+safety failures. The passing non-control cases are coincidences of this finite
+schedule (the word still ended at the cursor), not safety.
+
+### Why (source-read; the matching runtime outcomes are above)
+
+- GTK 4.22.4 `text_input_done` applies the pending deletion then the commit
+  regardless of the serial; the serial only gates a later `notify_im_change`.
+  This matches the installed protocol text and the in-flight cases above.
+- `gtk_text_delete_surrounding_cb` deletes at `current_pos + offset`, relative to
+  the widget's current cursor, with no comparison against what the engine saw.
+- When the engine's offset exceeded what Mutter's cached cursor allowed, no
+  `delete_surrounding_text` reached the client but the `commit_string` did. That
+  is a partial application: commit without deletion. The exact Mutter 50.1
+  source explains the observation: `meta_wayland_text_input_focus_delete_surrounding`
+  converts the requested character offset against its cached surrounding text,
+  then returns at `g_return_if_fail (before >= start)` when the range begins
+  before that cache. The commit path independently queues a null preedit and the
+  commit string, so the delete rejection does not suppress the commit.
+- GNOME Shell 50.1's `inputMethod.js` fallback is not the cause here. Its
+  try/catch surrounds the call that queues the Clutter delete event; Mutter's
+  range check occurs later while processing that event, so the exception cannot
+  be caught there. If Shell's fallback ran for `offset=-6, nchars=6`, it would
+  request a zero-length deletion, which does not match the trace showing no
+  delete event at all.
+- Unconfirmed: `text_input_delete_surrounding_text` applies a compositor-supplied
+  byte length to the client's cached text with `cursor_pointer - before_length`,
+  with no check against the cursor index, so a large length could read before the
+  buffer. An AddressSanitizer run of the in-flight cursor case reported nothing,
+  but the read would occur inside GLib, which is not instrumented, so that run
+  cannot confirm or exclude it. The optional sanitizer mode was removed.
+
+### Harness findings
+
+GTK publishes a field's surrounding text only on focus-in, `gtk_im_context_reset()`
+or an IM commit. A programmatic `set_text()` publishes nothing, so a first draft
+had the engine seeing an empty field. The harness now publishes state the way
+GTK does after an edit. Compositor `done` acknowledgements of the client's own
+commits vary between two and three per matched case; outcomes did not vary.
+
+### What this does not establish
+
+Only `GtkText` in one toolkit version was exercised; `GtkTextView`/`EditorDocument`,
+IME preedit, concurrent typing, a real analyzer or engine, other Mutter, Shell or
+IBus versions, and any other client (including Chrome and Firefox) are untested.
+The engine's stale request is an idealized stale reply. No protocol non-conformance
+is claimed; the serial is not specified as a compare-and-swap. No workaround, GTK,
+Mutter, Shell, daemon or gate change was made, and none is proposed here.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 integrations/gnome/tests/run_wayland_probe.py --stale-text-input
+PYTHONDONTWRITEBYTECODE=1 python3 integrations/gnome/tests/run_wayland_probe.py --stale-text-input --case inflight_word_changed
+```
+
+The existing nine native cases are unchanged (four pass, five fail as above) and
+the 20 client-transaction checks still pass.

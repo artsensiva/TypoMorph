@@ -12,6 +12,8 @@ The owner approved the documentation, its local commit, and this implementation 
 
 No application code or configuration was changed while preparing this plan. The unrelated untracked `.htaccess` is excluded from this work.
 
+Scope note (D-38, 2026-10-28): the Product Owner approved Linux as the first beta target, with the six languages plus Greek, Turkish, Polish, Portuguese, and Italian as input/layout languages (not UI-localization additions); Windows and macOS remain longer-term. This plan's first-public-release scope is unchanged. Beta-specific mapping to P3, P4, and P9 and readiness criteria are not yet planned and need a scoped plan update. The beta audience/access model (including whether it is the D-35 closed beta), pricing/licensing, distribution, and public-release status of the five additions remain undecided.
+
 ## 2. Delivery strategy and dependencies
 
 Start with a small working Linux correction path and evidence of safety feasibility on the other target platforms. An internal Linux milestone is not a reduced public-release scope.
@@ -109,7 +111,7 @@ Create synthetic and appropriately licensed test corpora with correct-input cont
 
 Checks: mapping fixtures, candidate ranking/abstention, new/unselected layout changes, per-direction false corrections and misses. Define sample sizes and propose numerical acceptance thresholds after baseline measurement, before beta.
 
-Exit: exact variant coverage recorded, no language advertised from a profile alone, and thresholds/data limitations reviewed. Additional languages remain deferred.
+Exit: exact variant coverage recorded, no language advertised from a profile alone, and thresholds/data limitations reviewed. Additional languages remain outside this package's six-language scope; the five Linux-beta additions (D-38) have no layout IDs, mapping, or quality plan yet and need a separate plan update.
 
 ### P5 — Windows and macOS implementations
 

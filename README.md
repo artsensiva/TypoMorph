@@ -24,6 +24,8 @@ See the [project checkpoint](docs/PROJECT_STATE.md) for verified progress and th
 - Seven-day account-wide trial without a card, then **USD 7/year with automatic renewal or USD 19 once for a perpetual license**. Both paid options cover three computers and the same features. The perpetual license includes all future released updates.
 - No AI prompt improvement, spelling correction, permanent free tier, or Enterprise tier in this release.
 
+**Linux beta scope (Product Owner decision D-38, 2026-10-28).** Linux is the first beta target. Its input/layout languages are the six above plus Greek, Turkish, Polish, Portuguese, and Italian; the additions are not UI-localization additions, and Windows and macOS remain longer-term. This is a scope decision only. The first-release list above is unchanged, none of the five additions has layout or mapping work yet, and no beta, audience, access model, or date is committed.
+
 Prices include applicable taxes. Payment is in USD; the website will also show a dated approximate EUR equivalent when its reference rate is sufficiently current. These are approved product requirements, not an announcement that checkout or licensing already exists.
 
 ## Current implementation and known limitations
@@ -39,7 +41,7 @@ The current workspace contains six crates:
 | `settings` | Atomic, locked, content-free local preferences, including persistent pause and sounds |
 | `native-host` | Bounded readiness-only Native Messaging endpoint; correction unavailable |
 
-The classifier has English, Spanish, German, French, Russian, Ukrainian, and Hindi profiles. Physical layout conversion is based on incomplete US/RU tables; recognizing a language or returning a layout identifier does not establish correction support.
+The classifier has English, Spanish, German, French, Russian, Ukrainian, and Hindi profiles. The legacy simulator still uses incomplete US/RU tables. A separate Linux XKB mapper now covers bounded physical-key proposals for eight selected layout IDs; it is not wired into live correction. Recognizing a language or mapping keys does not establish safe application correction support.
 
 The live daemon evaluates words at a boundary rather than implementing the approved within-word behavior. Windows/macOS adapters, the full settings UI, Stripe accounts/billing, and end-to-end entitlement activation are not implemented. Offline signature and period verification is implemented and tested independently.
 
@@ -49,14 +51,26 @@ The live daemon evaluates words at a boundary rather than implementing the appro
 
 ## Latest development evidence
 
-As of 2026-10-01:
+As of 2026-10-28:
 
 - The isolated GTK 4.22.4 prototype passes 29 buffer/history tests with ASan,
   UBSan and leak detection: bounded replacement, ordinary undo/redo, and targeted
   reversal preserving later disjoint typing.
-- GtkTextView and GtkTextLayout integration remain blocked. Existing legacy
-  callbacks need a compatible transaction contract; cache invalidation alone
-  is insufficient. Refusal checks remain enabled.
+- Six internal GtkTextLayout transaction tests and 20 upstream GTK buffer tests
+  pass. Four AT-SPI snapshot-notification scenarios pass on a private Wayland
+  session. On 2026-10-28 a fixed-input splice through one attached GtkTextView
+  delivered ordered delete/insert events to a real AT-SPI listener after storage
+  commit, including undo/redo; unrealized contexts refuse without edits. The
+  view's AT-SPI context did not become ready from presentation, mapping or a
+  passive wait; it became ready only after an AT client traversed to the window's
+  children, or when the view was added to an already realized window (about 3 s
+  after presentation). A splice in GTK's listener-startup interval commits but
+  delivers no event and sets no failure flag; reproduced, not fixed. Multiple
+  ready views, disconnect recovery and Text Editor buffer subclasses remain
+  unverified or unsupported; external legacy edit handlers still cause refusal.
+- The Linux XKB mapper passes five fixed-input test groups, including all 56
+  directed layout pairs for one physical position, modifiers, regional letters,
+  and unsupported-input refusal. Complete mapping quality is not yet measured.
 - Tests use fixed synthetic text and disposable toolkit builds. They do not
   establish working Chrome, Text Editor, Windows or macOS autocorrection.
 
@@ -84,7 +98,7 @@ Approved owner decisions and the current workspace take precedence over historic
 
 ## Development and simulation
 
-The current full workspace is Linux-oriented. Install Rust with Rust 2021 support, `libdbus-1-dev`, and `pkg-config` before building.
+The current full workspace is Linux-oriented. Install Rust with Rust 2021 support, `libdbus-1-dev`, `libxkbcommon-dev`, `xkb-data`, and `pkg-config` before building.
 
 ```bash
 cargo build --locked --workspace

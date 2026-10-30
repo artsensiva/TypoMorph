@@ -25,7 +25,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+      - run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libxkbcommon-dev xkb-data pkg-config
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+      - run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libxkbcommon-dev xkb-data pkg-config
       - run: cargo test --workspace
       - run: python3 -m unittest discover -s scripts/tests -v
       - run: python3 -m unittest discover -s integrations/gnome/text-editor -p test_assess_probe.py -v
@@ -41,6 +41,9 @@ jobs:
 
   audit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v4
       - uses: rustsec/audit-check@v2

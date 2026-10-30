@@ -13,6 +13,16 @@ class Outcome(IntEnum):
     KNOWN_UNSAFE = 2
 
 
+# Fixed facts the subclass-boundary case may report. Order and values are pinned in
+# EXPECTED below; the full set exists so the runner can display an unexpected value.
+SUBCLASS_FACTS = (
+    'TYPE_IS_SOURCE_BUFFER_SUBCLASS', 'TYPE_IS_NOT_SOURCE_BUFFER_SUBCLASS',
+    'TAGS_PRESENT', 'TAGS_ABSENT',
+    'LEGACY_EDIT_HANDLERS_PRESENT', 'LEGACY_EDIT_HANDLERS_ABSENT',
+    'LIBRARY_API_ABSENT', 'SPLICE_REFUSED_UNCHANGED', 'SPLICE_NOT_REFUSED_OR_STATE_CHANGED',
+    'ORDINARY_EDIT_NOTIFIES_TITLE', 'ORDINARY_EDIT_DOES_NOT_NOTIFY_TITLE',
+)
+
 EXPECTED = {
     'normal': [
         'typomorph-probe: WAITING',
@@ -30,6 +40,15 @@ EXPECTED = {
         'typomorph-probe: CALLBACK_EDIT_INJECTED',
         'typomorph-probe: FAULT_PARTIAL_EDIT',
         'typomorph-check: KNOWN_UNSAFE_PARTIAL_EDIT_OBSERVED',
+    ],
+    # Observed 3 of 3 times on the real EditorDocument, then pinned. A change in any
+    # fact (for example tags becoming absent) fails the case so it is re-examined.
+    'subclass-boundary': [
+        'typomorph-subclass: TYPE_IS_SOURCE_BUFFER_SUBCLASS',
+        'typomorph-subclass: TAGS_PRESENT',
+        'typomorph-subclass: LEGACY_EDIT_HANDLERS_PRESENT',
+        'typomorph-subclass: SPLICE_REFUSED_UNCHANGED',
+        'typomorph-subclass: ORDINARY_EDIT_NOTIFIES_TITLE',
     ],
     'gap-edit': [
         'typomorph-probe: WAITING',
@@ -49,7 +68,8 @@ def assess(case: str, output: bytes, app_exit_code: int) -> Outcome:
         return Outcome.FAILED
     # Other app output cannot supply evidence. Any unknown/duplicate/reordered
     # protocol marker makes the trace invalid rather than being silently skipped.
-    markers = [line for line in lines if line.startswith(('typomorph-probe:', 'typomorph-check:'))]
+    markers = [line for line in lines
+               if line.startswith(('typomorph-probe:', 'typomorph-check:', 'typomorph-subclass:'))]
     if markers != EXPECTED[case]:
         return Outcome.FAILED
     if case in ('gap-edit', 'callback-delete-edit'):

@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 
-from assess_probe import EXPECTED, MAX_OUTPUT_BYTES, Outcome, assess
+from assess_probe import EXPECTED, MAX_OUTPUT_BYTES, SUBCLASS_FACTS, Outcome, assess
 
 
 def safe_markers(output):
@@ -22,7 +22,25 @@ def safe_markers(output):
         b'typomorph-check: CHECK_FAILED',
         b'typomorph-diagnostic: BEFORE_MUTATION_REFUSED',
         b'typomorph-diagnostic: BEGIN_ACTION_REFUSED'})
+    allowed.update(b'typomorph-subclass: ' + name.encode() for name in SUBCLASS_FACTS)
     return [line.decode('ascii') for line in output.splitlines() if line in allowed]
+
+
+def patched_gtk_environment(gtk_build):
+    """Environment for the application process only, never the compositor or services.
+
+    The prototype library is built with ASan/UBSan, so the matching runtime must be
+    preloaded. Both are disposable /tmp artifacts; nothing is installed."""
+    if gtk_build is None:
+        return {}
+    gtk_dir = gtk_build.resolve(strict=True) / 'gtk'
+    if not gtk_dir.is_relative_to('/tmp') or not (gtk_dir / 'libgtk-4.so.1').exists():
+        raise RuntimeError('A disposable patched GTK build under /tmp is required')
+    asan = subprocess.check_output(['/usr/bin/gcc', '-print-file-name=libasan.so'],
+                                   text=True, timeout=10).strip()
+    return dict(LD_LIBRARY_PATH=str(gtk_dir), LD_PRELOAD=os.path.realpath(asan),
+                ASAN_OPTIONS='detect_leaks=0:halt_on_error=1',
+                UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1')
 
 
 def stop(child):
@@ -109,7 +127,8 @@ def inside(args):
                 call(name, remote, interface, 'NotifyKeyboardKeysym',
                     GLib.Variant('(ub)', (value, pressed)))
         env = dict(os.environ, WAYLAND_DISPLAY='typomorph-test', GDK_BACKEND='wayland',
-            GSETTINGS_SCHEMA_DIR=str(args.schemas), TYPOMORPH_TEXT_EDITOR_CASE=args.case)
+            GSETTINGS_SCHEMA_DIR=str(args.schemas), TYPOMORPH_TEXT_EDITOR_CASE=args.case,
+            **patched_gtk_environment(args.gtk_build))
         app = subprocess.Popen([str(args.binary), '--standalone'], env=env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         output = bytearray()
@@ -160,8 +179,12 @@ def main():
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--schemas', type=Path, required=True)
     parser.add_argument('--case', choices=['baseline', *EXPECTED], required=True)
+    parser.add_argument('--gtk-build', type=Path,
+                        help='Disposable patched GTK build; required by subclass-boundary')
     parser.add_argument('--inside', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if (args.case == 'subclass-boundary') != (args.gtk_build is not None):
+        parser.error('--gtk-build is required for, and only valid with, subclass-boundary')
     args.binary = args.binary.resolve(strict=True)
     args.schemas = args.schemas.resolve(strict=True)
     if not args.binary.is_file() or not (args.schemas / 'gschemas.compiled').is_file():
@@ -179,7 +202,8 @@ def main():
             '<allow own="*"/></policy></busconfig>')
         child = subprocess.Popen(['dbus-run-session', '--config-file=' + str(config), '--',
             '/usr/bin/python3', str(Path(__file__).resolve()), '--inside',
-            '--binary', str(args.binary), '--schemas', str(args.schemas), '--case', args.case],
+            '--binary', str(args.binary), '--schemas', str(args.schemas), '--case', args.case,
+            *(['--gtk-build', str(args.gtk_build)] if args.gtk_build else [])],
             env=private_environment(root), start_new_session=True)
         try:
             return child.wait(60)

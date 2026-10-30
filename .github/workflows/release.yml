@@ -20,7 +20,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install system build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libxkbcommon-dev xkb-data pkg-config
 
       - name: Validate workspace
         run: |

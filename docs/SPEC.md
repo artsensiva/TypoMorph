@@ -26,6 +26,12 @@ All of the following are required, with detailed matrices in [COMPATIBILITY.md](
 
 There is no calendar deadline. Release as soon as the required scope and readiness gates are met; do not silently reduce scope to ship sooner.
 
+### 2.1 Linux beta scope (D-38, 2026-10-28)
+
+The list above remains the first-public-release baseline. Separately, the Product Owner approved Linux as the first beta target. Its input/layout scope is the six languages above plus Greek, Turkish, Polish, Portuguese, and Italian. Windows and macOS remain in the longer-term scope. The five additions are input/layout languages only; they are not UI-localization additions, and UI localization stays the six languages. The beta stays within the Linux scope in [COMPATIBILITY.md](COMPATIBILITY.md), with no implied support for other distributions, desktop environments, or window systems. Every safety, privacy, and evidence rule in this specification applies unchanged, and production correction stays disabled until safe replacement is demonstrated.
+
+Undecided: exact layout IDs/variants for the five additions, quality thresholds, beta audience and access model, pricing/licensing, distribution, whether this beta is the closed beta in section 7, and whether the five languages become public-release requirements. This is a scope decision, not a claim that any additional language works or that a beta is ready.
+
 Browser extensions are conditional on native compatibility evidence and further owner approval. Their absence must not categorically disable a browser. Safari extension is deferred.
 
 ## 3. Functional requirements
@@ -116,7 +122,7 @@ Paid/trial entitlement and field safety remain required for any manual action.
 
 Provide two short, distinct signals: automatic correction with a layout change, and undo. Emit one signal per action. Sounds are off by default, may be enabled during setup, and have a global menu toggle.
 
-Localize onboarding, settings, and user-facing errors into English, Russian, Ukrainian, German, French, and Spanish. Start with the supported OS UI language, otherwise English; allow an independent manual UI-language choice. Technical documentation and source code remain English.
+Localize onboarding, settings, and user-facing errors into English, Russian, Ukrainian, German, French, and Spanish. Start with the supported OS UI language, otherwise English; allow an independent manual UI-language choice. Technical documentation and source code remain English. The Linux-beta input/layout additions (D-38) do not extend this UI-localization commitment.
 
 ### FR-14: Access, accounts, and commercial lifecycle
 
@@ -183,7 +189,7 @@ Safety and input integrity take precedence over automatic/manual mode, valid pay
 
 Do not build AI prompt improvement (local or cloud), general spelling correction, user-word learning/dictionaries, clipboard history, dictionary sync, Enterprise/fleet controls, code-aware editor plugins, IME correction, remote-session/VM support, Safari extension, custom/phonetic layouts, other Linux environments, Windows 10, Linux/Windows ARM, or store/repository distribution for this release.
 
-Next language expansion priorities are Greek, Turkish, Polish, and Portuguese; they are not first-release obligations. Chrome/Edge/Firefox extensions are a conditional decision, not an unconditional deliverable.
+Greek, Turkish, Polish, and Portuguese were the next language expansion priorities and are not first-public-release obligations. For the Linux beta, D-38 (2026-10-28) now includes them and Italian as input/layout languages (section 2.1) and supersedes the earlier priority wording for that purpose only; whether they join the public release is undecided. Chrome/Edge/Firefox extensions are a conditional decision, not an unconditional deliverable.
 
 ## 7. Release acceptance and approval gates
 

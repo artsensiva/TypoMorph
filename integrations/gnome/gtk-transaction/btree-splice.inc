@@ -2,16 +2,63 @@
  * Appended inside gtktextbtree.c by the isolated prototype patch builder.
  * Same-character-count, short-line experiment. No production ABI is proposed.
  */
-gboolean
-_gtk_text_btree_typomorph_has_views (GtkTextBTree *tree)
+void
+_gtk_text_btree_typomorph_before_insert (GtkTextBTree *tree, GtkTextIter *iter)
 {
-  return tree->views != NULL;
+  for (BTreeView *view = tree->views; view != NULL; view = view->next)
+    gtk_text_layout_typomorph_before_insert (view->layout, iter);
+}
+
+void
+_gtk_text_btree_typomorph_before_delete (GtkTextBTree *tree, GtkTextIter *start, GtkTextIter *end)
+{
+  for (BTreeView *view = tree->views; view != NULL; view = view->next)
+    gtk_text_layout_typomorph_before_delete (view->layout, start, end);
+}
+
+void
+_gtk_text_btree_typomorph_after_edit (GtkTextBTree *tree)
+{
+  for (BTreeView *view = tree->views; view != NULL; view = view->next)
+    gtk_text_layout_typomorph_after_edit (view->layout);
+}
+
+gboolean
+_gtk_text_btree_typomorph_layouts_supported (GtkTextBTree *tree)
+{
+  guint count = 0;
+  for (BTreeView *view = tree->views; view != NULL; view = view->next)
+    if (++count > 4 || !gtk_text_layout_typomorph_ready (view->layout))
+      return FALSE;
+  /* Bound bidi propagation when attached layouts must be invalidated. */
+  return count == 0 || tree->root_node->num_lines <= 257;
+}
+
+void
+_gtk_text_btree_typomorph_thaw (GPtrArray *layouts)
+{
+  for (guint i = 0; i < layouts->len; i++)
+    gtk_text_layout_typomorph_defer (g_ptr_array_index (layouts, i), FALSE);
+}
+
+void
+_gtk_text_btree_typomorph_publish (GPtrArray *layouts, GtkTextBuffer *buffer)
+{
+  /* Snapshot references survive callbacks that detach or release other layouts.
+   * No iterators or B-tree view-list links survive across these notifications. */
+  for (guint i = 0; i < layouts->len; i++)
+    {
+      GtkTextLayout *layout = g_ptr_array_index (layouts, i);
+      if (layout->buffer == buffer)
+        gtk_text_layout_typomorph_publish (layout);
+    }
 }
 
 gboolean
 _gtk_text_btree_typomorph_splice (GtkTextIter *start,
                                 GtkTextIter *end,
-                                const char  *replacement)
+                                const char  *replacement,
+                                GPtrArray **layouts)
 {
   GtkTextBTree *tree = _gtk_text_iter_get_btree (start);
   GtkTextLine *line = _gtk_text_iter_get_text_line (start);
@@ -23,9 +70,8 @@ _gtk_text_btree_typomorph_splice (GtkTextIter *start,
   int last = gtk_text_iter_get_line_offset (end);
   int absolute_first = gtk_text_iter_get_offset (start);
 
-  /* Views/subclasses need a new notification contract. Do not silently bypass
-   * their existing delete/insert callbacks in this first storage experiment. */
-  if (_gtk_text_btree_typomorph_has_views (tree) || _gtk_text_iter_get_text_line (end) != line ||
+  /* GtkTextView legacy handlers still refuse at the buffer boundary. */
+  if (!_gtk_text_btree_typomorph_layouts_supported (tree) || _gtk_text_iter_get_text_line (end) != line ||
       gtk_text_iter_get_chars_in_line (start) > 256 || last <= first ||
       last - first > 32 || g_utf8_strlen (replacement, -1) != last - first)
     return FALSE;
@@ -69,6 +115,13 @@ _gtk_text_btree_typomorph_splice (GtkTextIter *start,
   if (count == 0 || position < last)
     goto refuse;
 
+  *layouts = g_ptr_array_new_with_free_func (g_object_unref);
+  for (BTreeView *view = tree->views; view != NULL; view = view->next)
+    {
+      g_ptr_array_add (*layouts, g_object_ref (view->layout));
+      gtk_text_layout_typomorph_defer (view->layout, TRUE);
+    }
+
   /* Commit contains no signal, layout, history or user callback. No buffer or
    * B-tree is swapped. Allocation failure follows GTK's process-fatal policy. */
   for (link = &line->segments; *link != NULL && index < count; link = &(*link)->next)
@@ -86,6 +139,7 @@ _gtk_text_btree_typomorph_splice (GtkTextIter *start,
   _gtk_text_btree_get_iter_at_char (tree, start, absolute_first);
   _gtk_text_btree_get_iter_at_char (tree, end, absolute_first + last - first);
   gtk_text_btree_resolve_bidi (start, end);
+  _gtk_text_btree_invalidate_region (tree, start, end, FALSE);
   if (GTK_DEBUG_CHECK (TEXT))
     _gtk_text_btree_check (tree);
   return TRUE;

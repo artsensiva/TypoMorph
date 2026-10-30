@@ -17,7 +17,8 @@ def main():
     source = Path(sys.argv[1]).resolve()
     here = Path(__file__).resolve().parent
     hashes = json.loads((here / 'upstream-files.sha256.json').read_text())
-    patch = here / '0001-private-owner-range-probe.patch'
+    patches = [here / '0001-private-owner-range-probe.patch',
+               here / '0002-subclass-boundary-probe.patch']
     originals = {}
     for name, expected in hashes.items():
         data = (source / name).read_bytes()
@@ -30,15 +31,18 @@ def main():
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-        def apply(*options):
+        def apply(patch, *options):
             subprocess.run(['git', '-C', str(root), 'apply', *options, str(patch)], check=True)
-        apply('--check', '--whitespace=error-all')
-        apply('--whitespace=error-all')
+        # Patches are an ordered series: 0002 modifies a file created by 0001.
+        for patch in patches:
+            apply(patch, '--check', '--whitespace=error-all')
+            apply(patch, '--whitespace=error-all')
         for name in ('editor-typomorph-owner.c', 'editor-typomorph-owner.h'):
             if not (root / 'src' / name).is_file():
                 raise SystemExit('Patch did not create: ' + name)
-        apply('--reverse', '--check')
-        apply('--reverse')
+        for patch in reversed(patches):
+            apply(patch, '--reverse', '--check')
+            apply(patch, '--reverse')
         restored = {str(p.relative_to(root)): p.read_bytes()
                     for p in root.rglob('*') if p.is_file()}
         if restored != originals:

@@ -13,7 +13,7 @@ This log consolidates the final choices from discovery. It does not reconstruct 
 | D-02 | Exclude local/cloud AI prompt improvement | AI entry points removed from the working build on 2026-09-28; historical sources excluded |
 | D-03 | Release text stays in bounded transient RAM; no input logs, transmission, telemetry, or automatic crash uploads | Local settings and account/payment metadata are separate from typed content |
 | D-04 | Development-only local text diagnostics allowed when necessary | Explicit development controls and synthetic input; no permission to capture personal typing during documentation work |
-| D-05 | Six first-release input and UI languages: English, Russian, Ukrainian, German, French, Spanish | Exact supported variants and directions need validation; all six are required at public release |
+| D-05 | Six first-release input and UI languages: English, Russian, Ukrainian, German, French, Spanish | Exact supported variants and directions need validation; all six are required at public release. First-public-release baseline; the Linux beta scope is D-38 |
 | D-06 | Select only supported layouts installed in the OS | Discover/propose layouts; user confirms; prompt for newly installed layouts without auto-enrollment |
 | D-07 | Correct within a word as soon as confidence permits | Correct text remains unchanged; ambiguous automatic decisions abstain |
 | D-08 | Manual last-word/selection repair and safe undo | Preview ambiguous candidates; last-word repair switches layout, selection repair preserves it |
@@ -46,12 +46,30 @@ This log consolidates the final choices from discovery. It does not reconstruct 
 | D-35 | Per-direction accuracy metrics, real OS/app tests, and closed beta | Numeric accuracy thresholds after baseline, before beta; no pooled score hiding weak directions |
 | D-36 | No fixed release date; release as soon as complete and ready | Do not silently reduce languages, platforms, or safety scope |
 | D-37 | Documentation review, then implementation-plan review, then code | Documentation authorization does not authorize fixes, refactors, commits, or publication |
+| D-38 | Product Owner decision, 2026-10-28: Linux beta is the first beta target; its input/layout scope is the six D-05 languages plus Greek, Turkish, Polish, Portuguese, and Italian; Windows and macOS stay in the longer-term scope | Scope decision only; see section 2.1. Does not change D-05, D-19, D-35, or D-36 for the first public release, and is not evidence that any language or a beta is implemented or ready |
 
 ## 2. Language and expansion decisions
 
 First-release exact variants are in [COMPATIBILITY.md](COMPATIBILITY.md). Language profiles alone are insufficient: mapping, modifiers, composition, and correction accuracy must be validated in both directions for each relevant pair.
 
 Greek, Turkish, Polish, and Portuguese are next expansion priorities. Italian, Czech, Bulgarian, Hebrew, and Arabic are later possibilities, not promises. Other regional/custom/phonetic layouts and IME correction are deferred. Safe behavior around an active IME is mandatory now.
+
+*Superseded in part, 2026-10-28 (D-38):* for the Linux beta, Greek, Turkish, Polish, Portuguese, and Italian are approved input/layout languages, so the "expansion priority" and "later possibility" wording above no longer describes them. It still applies to Czech, Bulgarian, Hebrew, Arabic, and to those five languages' role in the first public release, which D-38 does not decide. The paragraph is kept as history; D-38 is authoritative.
+
+### 2.1 Linux beta scope (D-38)
+
+The Product Owner approved on 2026-10-28:
+
+- **Target:** Linux is the first beta target.
+- **Input/layout languages:** the six D-05 languages (English, Russian, Ukrainian, German, French, Spanish) remain in scope, with five additions: Greek, Turkish, Polish, Portuguese, and Italian.
+- **Longer term:** Windows 11 and macOS remain in the product scope (D-19). This decision neither removes nor defers them.
+- **Not UI localization:** the five additions are input/layout languages only. The UI-localization commitment stays the six D-05 languages; extending it needs a separate decision.
+- **Linux boundary:** the beta stays inside the Linux scope already documented in [COMPATIBILITY.md](COMPATIBILITY.md) (Ubuntu LTS with GNOME on Wayland/X11, x86-64). No support for other distributions, desktop environments, or window systems is implied.
+- **Unchanged:** the first-public-release baseline (D-05, D-19, D-36) is not rewritten as an eleven-language or Linux-only release; a Linux-only public release would still need its own decision. Privacy and safety requirements (D-03, D-10, D-13, D-14) are not relaxed, and production correction stays disabled until safe ordinary-application replacement is demonstrated.
+
+This is a scope decision, not evidence. No demand study was provided. Nothing here claims that any additional language works, that a beta is ready, or that a date is committed (D-36 stands).
+
+Not decided: exact Linux layout IDs/variants for the five additions; conversion quality thresholds; beta audience or access model (closed or open) and whether this beta is the closed beta required by D-35; pricing/licensing during beta; distribution method; whether the five languages become first-public-release requirements.
 
 ## 3. Superseded commercial proposals
 

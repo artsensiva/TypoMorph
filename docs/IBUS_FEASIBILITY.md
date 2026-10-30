@@ -15,7 +15,7 @@ Read-only checks found IBus 1.5.34-rc2 running, with current engine `xkb:us::eng
 | GNOME integration | Shell bridges IBus preedit/commit and content hints into its input method | Shell uses a shared IBus context; its identifier alone must not be treated as a unique editable-field identity |
 | Delete surrounding + commit | IBus exposes separate messages | No demonstrated compare-and-replace operation with an expected field revision |
 | Preedit | An engine can display composition and commit the resulting word | Changes composition behavior; requires lossless focus/reset/error handling |
-| Wayland text-input v3 | Related changes are applied together at `done` | Its serial mismatch behavior is not rejection of stale text operations |
+| Wayland text-input v3 | Related changes are applied together at `done` | Its serial mismatch behavior is not rejection of stale text operations; a stock GTK4 client applied stale requests and corrupted a field (2026-10-29, NATIVE_WAYLAND_EXPERIMENT.md) |
 
 The installed-version [IBus context implementation](https://raw.githubusercontent.com/ibus/ibus/1.5.34-rc2/bus/inputcontext.c) routes engine signals through context objects. It also contains optional post-process queues; this alone does not establish transaction semantics for every client.
 

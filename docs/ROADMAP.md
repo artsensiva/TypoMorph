@@ -33,9 +33,11 @@ Browser-extension inclusion is a decision gate after native coverage is measured
 
 Exact order, dependencies, engineering choices, estimates, and any safe concurrency belong in the later implementation plan. A Linux-only or two-language public release would require a new product decision.
 
+**Linux beta (D-38, 2026-10-28).** The Product Owner approved Linux as the first beta target, covering the six languages plus Greek, Turkish, Polish, Portuguese, and Italian as input/layout languages, with Windows and macOS remaining longer-term. This is not a Linux-only public release and sets no date, audience, or access model; stage F and section 3 below remain the public-release gates. Beta readiness criteria are undecided, and production correction stays disabled until safe replacement is demonstrated.
+
 ## 3. First-release readiness
 
-The first public release requires:
+The first public release (not the Linux beta, see section 2) requires:
 
 - all six input/UI languages and approved layout variants;
 - Ubuntu GNOME Wayland/X11, Windows 11, macOS Intel and Apple Silicon with explicit tested versions;
@@ -55,8 +57,8 @@ Current source and package presence do not count as passing these gates. BUG-001
 | Area | Later work |
 | --- | --- |
 | Performance | Reduce replacement latency below the first-release p95 target of 100 ms |
-| Input languages | Greek, Turkish, Polish, Portuguese as next expansion priorities |
-| Further languages | Italian, Czech, Bulgarian, Hebrew, Arabic subject to demand and validation |
+| Input languages | Greek, Turkish, Polish, Portuguese, Italian: approved for the Linux beta (D-38); public-release inclusion undecided |
+| Further languages | Czech, Bulgarian, Hebrew, Arabic subject to demand and validation |
 | Layout variants | Additional regional, alternative, phonetic, and custom layouts |
 | Platforms | Additional Linux environments/distributions, Windows 10 if reconsidered, Linux/Windows ARM |
 | Browsers | Safari extension; other browsers only after evidence |

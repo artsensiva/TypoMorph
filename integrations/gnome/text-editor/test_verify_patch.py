@@ -32,7 +32,8 @@ def main():
         tools = Path(tmp) / 'tools'
         tools.mkdir()
         for name in ('verify_patch.py', 'upstream-files.sha256.json',
-                     '0001-private-owner-range-probe.patch'):
+                     '0001-private-owner-range-probe.patch',
+                     '0002-subclass-boundary-probe.patch'):
             shutil.copyfile(here / name, tools / name)
         def run(success, expected=''):
             before = contents(tree)
@@ -55,7 +56,13 @@ def main():
         run(False)
         patch.write_bytes(original_patch)
         print('PASS corrupt patch refused without mutation')
-    print('Three verifier regression checks passed; no C build/runtime checks performed.')
+        patch = tools / '0002-subclass-boundary-probe.patch'
+        original_patch = patch.read_bytes()
+        patch.write_text('invalid patch fixture\n')
+        run(False)
+        patch.write_bytes(original_patch)
+        print('PASS corrupt second patch in the series refused without mutation')
+    print('Four verifier regression checks passed; no C build/runtime checks performed.')
 
 
 if __name__ == '__main__':

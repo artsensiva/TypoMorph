@@ -12,10 +12,21 @@ CASES = ('shared_context', 'focus_draft', 'delayed_same_surface', 'round_trip',
          'selection', 'protected_transition', 'reset_draft', 'delayed_two_surfaces',
          'disconnect_draft')
 
+STALE_CASES = ('control_unchanged', 'cursor_moved', 'prefix_inserted', 'word_changed',
+               'other_field', 'selection_over_word',
+               'inflight_cursor_moved', 'inflight_prefix_inserted', 'inflight_word_changed')
+
+
 def main():
     selected = sys.argv[2] if len(sys.argv) == 3 and sys.argv[1] == '--case' else ''
     transaction = sys.argv[1:] == ['--client-transaction']
-    if len(sys.argv) == 1 or selected in CASES or transaction:
+    # Stale text-input-v3 characterization: --stale-text-input [--case NAME]
+    stale = sys.argv[1:2] == ['--stale-text-input'] and (
+        len(sys.argv) == 2 or (len(sys.argv) == 4 and sys.argv[2] == '--case'
+                               and sys.argv[3] in STALE_CASES))
+    if stale and len(sys.argv) == 4:
+        selected = sys.argv[3]
+    if len(sys.argv) == 1 or selected in CASES or transaction or stale:
         with tempfile.TemporaryDirectory(prefix='typomorph-wayland-') as tmp:
             env = dict(PATH='/usr/bin:/bin', LANG='C.UTF-8',
                 XDG_RUNTIME_DIR=tmp, XDG_CONFIG_HOME=tmp+'/config',
@@ -27,6 +38,7 @@ def main():
                 LIBGL_ALWAYS_SOFTWARE='1', GNOME_SHELL_SESSION_MODE='user',
                 TYPOMORPH_PRIVATE_WAYLAND='1', TYPOMORPH_WAYLAND_CASE=selected,
                 TYPOMORPH_CLIENT_TRANSACTION='1' if transaction else '0',
+                TYPOMORPH_STALE_TEXT_INPUT='1' if stale else '0',
                 PYTHONDONTWRITEBYTECODE='1')
             for name in ('config', 'cache', 'data', 'state'):
                 Path(tmp, name).mkdir()
@@ -38,7 +50,7 @@ def main():
             process = subprocess.Popen(['dbus-run-session', '--config-file='+str(config), '--', '/usr/bin/python3',
                 str(Path(__file__).resolve()), '--inside'], env=env, start_new_session=True)
             try:
-                return process.wait(65)
+                return process.wait(90 if stale else 65)
             finally:
                 try:
                     os.killpg(process.pid, signal.SIGTERM)
@@ -67,7 +79,9 @@ def main():
                 raise RuntimeError('Private IBus unavailable')
             time.sleep(.05)
         if os.environ.get('TYPOMORPH_CLIENT_TRANSACTION') != '1':
-            factory = subprocess.Popen(['/usr/bin/python3', str(Path(__file__).resolve().parents[2]/'ibus'/'gtk_fixture.py')],
+            fixture = ('stale_edit_fixture.py' if os.environ.get('TYPOMORPH_STALE_TEXT_INPUT') == '1'
+                       else 'gtk_fixture.py')
+            factory = subprocess.Popen(['/usr/bin/python3', str(Path(__file__).resolve().parents[2]/'ibus'/fixture)],
                                        stdout=subprocess.PIPE, text=True)
             import selectors
             with selectors.DefaultSelector() as selector:
@@ -102,6 +116,15 @@ def run_shell(runtime):
                     return 2
                 env = dict(os.environ, WAYLAND_DISPLAY='typomorph-test', GDK_BACKEND='wayland',
                            TYPOMORPH_SHELL_PID=str(shell.pid))
+                if os.environ.get('TYPOMORPH_STALE_TEXT_INPUT') == '1':
+                    # The client's own protocol trace, kept inside the private session
+                    # directory. Fixed synthetic text only; removed with the session.
+                    trace = Path(runtime, 'client-wayland-trace.log')
+                    env.update(WAYLAND_DEBUG='client', TYPOMORPH_WAYLAND_TRACE=str(trace))
+                    with trace.open('wb') as trace_file:
+                        return subprocess.run(['/usr/bin/python3', str(Path(__file__).with_name(
+                            'test_stale_text_input.py'))], env=env, timeout=60,
+                            stderr=trace_file).returncode
                 return subprocess.run(['/usr/bin/python3', str(Path(__file__).with_name(
                     'test_client_transaction.py' if os.environ.get('TYPOMORPH_CLIENT_TRANSACTION') == '1'
                     else 'test_wayland_route.py'))],

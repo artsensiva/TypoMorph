@@ -673,3 +673,6 @@ mod tests {
 
 mod context;
 pub use context::InputContext;
+
+/// Native, bounded mapping for explicitly selected Linux keyboard layouts.
+pub mod keymap;

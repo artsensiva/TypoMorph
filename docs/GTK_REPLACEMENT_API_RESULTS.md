@@ -101,8 +101,17 @@ still not establish Chrome, Windows or macOS support.
 The first approved [isolated GTK storage prototype](../integrations/gnome/gtk-transaction/README.md)
 now includes ordinary undo/redo and bounded targeted reversal preserving disjoint
 edits: 29 synthetic groups passed under sanitizers with
-leak detection. It deliberately refuses views, subclasses and legacy edit observers.
+leak detection. Six additional tests now cover bounded internal GtkTextLayout transactions; 20
+upstream GTK buffer tests also pass. It still refuses GtkTextView accessibility
+handlers, buffer subclasses and external legacy edit observers.
 A private Broadway view probe verifies correction/reversal refusal without editing; its earlier leak-enabled
 run reports font-stack allocations, recorded in the prototype evidence. This demonstrates
 a narrower storage/callback boundary, not a replacement for the missing complete
 application transaction contract.
+
+2026-10-01 follow-up: a bounded AT-SPI snapshot notification primitive passes four
+fixed-input scenario groups against the real GTK backend and accessibility registry
+on private headless Wayland. It carries original/replacement payloads explicitly
+instead of rereading the widget after mutation. This is independent notification
+evidence; GtkTextView storage integration, disconnect recovery and field ownership
+remain unimplemented. See the prototype README for reproduction and limits.

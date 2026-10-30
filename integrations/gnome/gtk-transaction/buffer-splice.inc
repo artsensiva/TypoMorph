@@ -88,15 +88,16 @@ typomorph_splice_impl (GtkTextBuffer *buffer,
   g_autofree char *actual = NULL;
   g_autofree char *owned_replacement = NULL;
   int characters;
+  g_autoptr(GPtrArray) contexts = NULL;
 
   g_return_val_if_fail (GTK_IS_TEXT_BUFFER (buffer), FALSE);
   /* Unsupported integrations refuse before reading text or changing history.
    * Existing legacy veto handlers must not silently be ignored. */
   if (G_OBJECT_TYPE (buffer) != GTK_TYPE_TEXT_BUFFER ||
-      buffer->priv->typomorph_mutating != 0 ||
+      buffer->priv->typomorph_mutating != 0 || buffer->priv->typomorph_notification_failed ||
       (buffer->priv->typomorph_splicing && !replay) || buffer->priv->in_commit_notify ||
       buffer->priv->user_action_count != 0 ||
-      _gtk_text_btree_typomorph_has_views (get_btree (buffer)) ||
+      !_gtk_text_btree_typomorph_layouts_supported (get_btree (buffer)) ||
       (!replay && !gtk_text_history_typomorph_ready (buffer->priv->history)) ||
       (buffer->priv->commit_funcs != NULL && buffer->priv->commit_funcs->len != 0) ||
       gtk_text_tag_table_get_size (get_table (buffer)) != 0 ||
@@ -106,6 +107,10 @@ typomorph_splice_impl (GtkTextBuffer *buffer,
       typomorph_last_token == G_MAXUINT64 ||
       !typomorph_word (original, original_bytes) ||
       !typomorph_word (replacement, replacement_bytes))
+    return FALSE;
+
+  contexts = typomorph_capture_contexts (buffer);
+  if (contexts == NULL || gtk_text_buffer_typomorph_revision (buffer) != expected_revision)
     return FALSE;
 
   characters = g_utf8_strlen (original, original_bytes);
@@ -119,7 +124,7 @@ typomorph_splice_impl (GtkTextBuffer *buffer,
     return FALSE;
   owned_replacement = g_strndup (replacement, replacement_bytes);
   buffer->priv->typomorph_splicing = TRUE;
-  if (!_gtk_text_btree_typomorph_splice (&start, &end, owned_replacement))
+  if (!_gtk_text_btree_typomorph_splice (&start, &end, owned_replacement, &buffer->priv->typomorph_layouts))
     {
       if (!replay)
         buffer->priv->typomorph_splicing = FALSE;
@@ -141,15 +146,23 @@ typomorph_splice_impl (GtkTextBuffer *buffer,
       memcpy (buffer->priv->typomorph_before, actual, original_bytes + 1);
       memcpy (buffer->priv->typomorph_after, owned_replacement, replacement_bytes + 1);
     }
+  buffer->priv->typomorph_contexts = g_steal_pointer (&contexts);
+  buffer->priv->typomorph_event_offset = offset;
+  memcpy (buffer->priv->typomorph_event_before, actual, original_bytes + 1);
+  memcpy (buffer->priv->typomorph_event_after, owned_replacement, replacement_bytes + 1);
   if (replay)
     return TRUE;
   g_object_ref (buffer);
   buffer->priv->typomorph_quiet = TRUE;
   gtk_text_history_typomorph_record (buffer->priv->history, offset, actual, owned_replacement);
   buffer->priv->typomorph_quiet = FALSE;
+  typomorph_publish_contexts (buffer);
+  _gtk_text_btree_typomorph_thaw (buffer->priv->typomorph_layouts);
   buffer->priv->typomorph_publishing = TRUE;
   gtk_text_history_typomorph_publish (buffer->priv->history);
   buffer->priv->typomorph_publishing = FALSE;
+  _gtk_text_btree_typomorph_publish (buffer->priv->typomorph_layouts, buffer);
+  g_clear_pointer (&buffer->priv->typomorph_layouts, g_ptr_array_unref);
   g_signal_emit (buffer, signals[CHANGED], 0);
   buffer->priv->typomorph_splicing = FALSE;
   g_object_unref (buffer);
@@ -190,9 +203,13 @@ typomorph_history_step (GtkTextBuffer *buffer, gboolean redo)
     {
       buffer->priv->typomorph_notify_revision = gtk_text_buffer_typomorph_revision (buffer);
       buffer->priv->typomorph_replaying = TRUE;
+      typomorph_publish_contexts (buffer);
+      _gtk_text_btree_typomorph_thaw (buffer->priv->typomorph_layouts);
       buffer->priv->typomorph_publishing = TRUE;
       gtk_text_history_typomorph_publish (buffer->priv->history);
       buffer->priv->typomorph_publishing = FALSE;
+      _gtk_text_btree_typomorph_publish (buffer->priv->typomorph_layouts, buffer);
+      g_clear_pointer (&buffer->priv->typomorph_layouts, g_ptr_array_unref);
       g_signal_emit (buffer, signals[CHANGED], 0);
       buffer->priv->typomorph_replaying = FALSE;
     }

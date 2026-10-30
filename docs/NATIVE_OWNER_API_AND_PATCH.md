@@ -12,7 +12,8 @@ No stable public API, deployable integration or upstream agreement is claimed.
 
 Follow-up (2026-09-30): the owner approved a separate temporary GTK transaction
 prototype. Its storage primitive and ordinary undo/redo are built and tested;
-views and subclasses still refuse. Bounded targeted correction reversal now passes
+internal layouts now pass bounded transaction tests, while GtkTextView
+accessibility handlers and buffer subclasses still refuse. Bounded targeted correction reversal now passes
 synthetic tests; field/focus ownership and cancellation wiring remain pending. See
 [prototype evidence](../integrations/gnome/gtk-transaction/README.md). The full
 owner API below and ordinary app integration remain unproven.
@@ -225,9 +226,9 @@ this application-specific experiment.
 4. For browser/toolkit interoperability, who owns the versioned origin token and
    acknowledgment? A surface or shared IBus context alone is insufficient here.
 
-## Next approval
+## Authorization boundary
 
-See NATIVE_TEXT_EDITOR_BUILD.md and NATIVE_BUILD_PACKAGE_PLAN.txt. Approve the
-listed dependency installation and isolated application patch experiment together,
-or choose source/patch work only without installing dependencies. No sending of
-upstream messages, installed app replacement or production deployment is included.
+The dependency installation and isolated application/toolkit experiments were
+already approved; see the dated decisions above. Continue those technical steps
+without requesting the same approval again. Upstream messages, installed app
+replacement, a permanent toolkit fork and production deployment are not included.

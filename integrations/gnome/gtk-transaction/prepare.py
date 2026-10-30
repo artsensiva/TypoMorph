@@ -2,9 +2,16 @@
 """Patch an explicitly supplied disposable GTK 4.22.4 release source tree."""
 import argparse
 import hashlib
+import re
 from pathlib import Path
 
 HASHES = {
+    'gtktextbufferprivate.h': '0680741e55c73fc88e8ddccaa2c9afe740e0e30669bcea93968d963c4ffddfcf',
+    'gtktextview.c': 'df7491b3753bb72e4c6c6118827f42b23c6d547a1f77c5c6129820154d299e55',
+    'a11y/gtkatspicontextprivate.h': 'b02a33f07358a6fb38fcd8b9360842d4e8d1d282dc9b532df95a4cd50bd568a2',
+    'a11y/gtkatspicontext.c': '769c0bd70bf311e7596c859020e3c0e45c64cabfad6d81424acedddc4fd38284',
+    'gtktextlayout.c': 'afe689322884dbb7a9179796c387ec84dacef88ea6e2ba18d6b54efdb0ae7dd0',
+    'gtktextlayoutprivate.h': '450fdc31a2c6b36ec5cdbab85deb5e421beb1cc9ae1f818eb1d9ddcfbdcdccd1',
     'gtktexthistory.c': 'dfeb72fe19f5872ea4aae33f853a96715802cccc343a75b8de4838d9db04137f',
     'gtktexthistoryprivate.h': 'bf1e45cda7afa5cbc1e9893f6dfed121881121a1ac82dd84bd6d736ef0aeb26c',
     'gtktextbuffer.c': '98a82aa59d503cbf6b5ebbd13422f5e6ae1b85646bb73366c21f1665ddac549e',
@@ -27,8 +34,14 @@ def main():
     text = {name: data.decode() for name, data in files.items()}
     here = Path(__file__).resolve().parent
     text['gtktextbuffer.c'] = text['gtktextbuffer.c'].replace(
+        '#include "gtkprivate.h"', '#include "gtkprivate.h"\n#include "gtktextview.h"\n#include "gtkaccessibleprivate.h"\n#include "a11y/gtkatspicontextprivate.h"')
+    text['gtktextbuffer.c'] = text['gtktextbuffer.c'].replace(
+        'static void gtk_text_buffer_real_undo',
+        'static void typomorph_notify_edit (GtkTextBuffer *, GtkAccessibleTextContentChange, int, int);\nstatic void gtk_text_buffer_real_undo', 1)
+
+    text['gtktextbuffer.c'] = text['gtktextbuffer.c'].replace(
         '  guint in_commit_notify : 1;',
-        '  guint in_commit_notify : 1;\n  guint typomorph_splicing : 1;\n  guint typomorph_quiet : 1;\n  guint typomorph_publishing : 1;\n  guint typomorph_replaying : 1;\n  guint typomorph_notify_revision;\n  guint64 typomorph_token;\n  guint typomorph_mutating;\n  guint typomorph_track_revision, typomorph_track_edits;\n  int typomorph_track_start, typomorph_track_end;\n  char typomorph_before[129], typomorph_after[129];')
+        '  guint in_commit_notify : 1;\n  guint typomorph_splicing : 1;\n  guint typomorph_quiet : 1;\n  guint typomorph_publishing : 1;\n  guint typomorph_replaying : 1;\n  guint typomorph_notify_revision;\n  guint64 typomorph_token;\n  guint typomorph_mutating;\n  GPtrArray *typomorph_layouts;\n  GSList *typomorph_views;\n  GPtrArray *typomorph_contexts;\n  gboolean typomorph_notification_failed;\n  guint typomorph_event_offset;\n  char typomorph_event_before[129], typomorph_event_after[129];\n  guint typomorph_track_revision, typomorph_track_edits;\n  int typomorph_track_start, typomorph_track_end;\n  char typomorph_before[129], typomorph_after[129];')
     text['gtktextbuffer.c'] = text['gtktextbuffer.c'].replace(
         'static void gtk_text_buffer_real_undo',
         'static void typomorph_track_edit (GtkTextBuffer *buffer, int start, int end, int added);\nstatic void typomorph_track_committed (GtkTextBuffer *buffer);\nstatic gboolean typomorph_history_step (GtkTextBuffer *buffer, gboolean redo);\nstatic void gtk_text_buffer_real_undo', 1)
@@ -111,8 +124,73 @@ int gtk_text_history_typomorph_step (GtkTextHistory *self, gboolean redo,
     ]:
         assert text['gtktextbuffer.c'].count(call) == 2
         text['gtktextbuffer.c'] = text['gtktextbuffer.c'].replace(
-            call, preflight + '\n      ' + call + '\n      typomorph_track_committed (buffer);')
-    text['gtktextbuffer.c'] += '\n' + (here / 'buffer-splice.inc').read_text()
+            call, preflight + '\n      ' + ('_gtk_text_btree_typomorph_before_insert (get_btree (buffer), iter);' if 'insert' in call else '_gtk_text_btree_typomorph_before_delete (get_btree (buffer), start, end);') + '\n      ' + call + '\n      _gtk_text_btree_typomorph_after_edit (get_btree (buffer));\n      typomorph_track_committed (buffer);')
+    view = text['gtktextview.c']
+    for handler in ['insert_text_handler', 'delete_range_handler']:
+        name = 'gtk_text_view_' + handler
+        view, count = re.subn(
+            r'      g_signal_(?:connect(?:_after)?|handlers_disconnect_by_func) '
+            r'\(priv->buffer,\s*(?:"(?:insert-text|delete-range)",\s*)?'
+            r'(?:G_CALLBACK \(' + name + r'\)|' + name + r'),\s*text_view\);\n', '', view)
+        assert count == 2, name
+        view, count = re.subn(r'static void\s+' + name + r'\s+\([^;{]+\);\n', '', view)
+        assert count == 1, name
+        view, count = re.subn(r'static void\n' + name + r' \([^;{]+\)\n\{.*?\n\}\n', '', view, flags=re.S)
+        assert count == 1, name
+    view = view.replace('  if (old_buffer != NULL)\n    {',
+                        '  if (old_buffer != NULL)\n    {\n      _gtk_text_buffer_typomorph_view (old_buffer, text_view, FALSE);', 1)
+    view = view.replace('      g_object_ref (buffer);',
+                        '      g_object_ref (buffer);\n      _gtk_text_buffer_typomorph_view (buffer, text_view, TRUE);', 1)
+    text['gtktextview.c'] = view
+    text['gtktextbufferprivate.h'] += '\nvoid _gtk_text_buffer_typomorph_view (GtkTextBuffer *, GtkTextView *, gboolean);\n'
+    # Ordinary accessibility notifications retain remove-before/insert-after semantics.
+    start = text['gtktextbuffer.c'].index('static void\ngtk_text_buffer_real_insert_text (')
+    end = text['gtktextbuffer.c'].index('\n}', start)
+    body = text['gtktextbuffer.c'][start:end].replace(
+        '  g_signal_emit (buffer, signals[CHANGED], 0);',
+        '  typomorph_notify_edit (buffer, GTK_ACCESSIBLE_TEXT_CONTENT_CHANGE_INSERT, gtk_text_iter_get_offset (iter) - g_utf8_strlen (text, len), gtk_text_iter_get_offset (iter));\n  g_signal_emit (buffer, signals[CHANGED], 0);')
+    text['gtktextbuffer.c'] = text['gtktextbuffer.c'][:start] + body + text['gtktextbuffer.c'][end:]
+    start = text['gtktextbuffer.c'].index('static void\ngtk_text_buffer_real_delete_range (')
+    end = text['gtktextbuffer.c'].index('\n}', start)
+    body = text['gtktextbuffer.c'][start:end].replace(
+        '  buffer->priv->typomorph_mutating++;',
+        '  buffer->priv->typomorph_mutating++;\n  typomorph_notify_edit (buffer, GTK_ACCESSIBLE_TEXT_CONTENT_CHANGE_REMOVE, gtk_text_iter_get_offset (start), gtk_text_iter_get_offset (end));')
+    text['gtktextbuffer.c'] = text['gtktextbuffer.c'][:start] + body + text['gtktextbuffer.c'][end:]
+    text['gtktextlayout.c'] = text['gtktextlayout.c'].replace(
+        'struct _GtkTextLayoutPrivate\n{',
+        'struct _GtkTextLayoutPrivate\n{\n  gboolean typomorph_deferred;')
+    text['gtktextlayout.c'] = text['gtktextlayout.c'].replace(
+        'gtk_text_layout_invalidated (GtkTextLayout *layout)\n{',
+        'gtk_text_layout_invalidated (GtkTextLayout *layout)\n{\n  if (GTK_TEXT_LAYOUT_GET_PRIVATE (layout)->typomorph_deferred)\n    return;')
+    # Internal cache/cursor maintenance moves to explicit storage hooks. Never
+    # whitelist or disconnect application-provided legacy handlers at runtime.
+    for handler in ['before_buffer_insert_text', 'after_buffer_insert_text',
+                    'before_buffer_delete_range', 'after_buffer_delete_range']:
+        pattern = (r'      g_signal_(?:connect(?:_after)?|handlers_disconnect_by_func) '
+                   r'\(layout->buffer,\s*(?:"(?:insert-text|delete-range)",\s*)?'
+                   r'G_CALLBACK \(gtk_text_layout_' + handler + r'\),\s*layout\);\n')
+        text['gtktextlayout.c'], count = re.subn(pattern, '', text['gtktextlayout.c'])
+        assert count == 2, handler
+    for handler in ['after_buffer_insert_text', 'after_buffer_delete_range']:
+        name = 'gtk_text_layout_' + handler
+        text['gtktextlayout.c'], count = re.subn(
+            r'static void\s+' + name + r'\s+\([^;{]+\);\n', '', text['gtktextlayout.c'])
+        assert count == 1, name
+        text['gtktextlayout.c'], count = re.subn(
+            r'static void\n' + name + r' \([^;{]+\)\n\{.*?\n\}\n', '',
+            text['gtktextlayout.c'], flags=re.S)
+        assert count == 1, name
+    text['gtktextlayout.c'] += '\n' + (here / 'layout-splice.inc').read_text()
+    text['gtktextlayoutprivate.h'] += """
+/* Disposable transaction prototype; private layout batching. */
+gboolean gtk_text_layout_typomorph_ready (GtkTextLayout *layout);
+void gtk_text_layout_typomorph_defer (GtkTextLayout *layout, gboolean deferred);
+void gtk_text_layout_typomorph_publish (GtkTextLayout *layout);
+void gtk_text_layout_typomorph_before_insert (GtkTextLayout *layout, GtkTextIter *iter);
+void gtk_text_layout_typomorph_before_delete (GtkTextLayout *layout, GtkTextIter *start, GtkTextIter *end);
+void gtk_text_layout_typomorph_after_edit (GtkTextLayout *layout);
+"""
+    text['gtktextbuffer.c'] += '\n' + (here / 'view-splice.inc').read_text() + '\n' + (here / 'buffer-splice.inc').read_text()
     text['gtktextbtree.c'] += '\n' + (here / 'btree-splice.inc').read_text()
     public = '''
 /* Experimental TypoMorph API: disposable headless prototype only. */
@@ -134,15 +212,25 @@ gboolean gtk_text_buffer_typomorph_splice (GtkTextBuffer *buffer,
                                           int replacement_bytes);
 
 '''
+    public += '\ngboolean gtk_text_buffer_typomorph_notification_failed (GtkTextBuffer *buffer);\n'
     private = '''
-gboolean _gtk_text_btree_typomorph_has_views (GtkTextBTree *tree);
+gboolean _gtk_text_btree_typomorph_layouts_supported (GtkTextBTree *tree);
 gboolean _gtk_text_btree_typomorph_splice (GtkTextIter *start,
                                         GtkTextIter *end,
-                                        const char *replacement);
+                                        const char *replacement,
+                                        GPtrArray **layouts);
+void _gtk_text_btree_typomorph_before_insert (GtkTextBTree *tree, GtkTextIter *iter);
+void _gtk_text_btree_typomorph_before_delete (GtkTextBTree *tree, GtkTextIter *start, GtkTextIter *end);
+void _gtk_text_btree_typomorph_after_edit (GtkTextBTree *tree);
+void _gtk_text_btree_typomorph_thaw (GPtrArray *layouts);
+void _gtk_text_btree_typomorph_publish (GPtrArray *layouts, GtkTextBuffer *buffer);
 
 '''
     text['gtktextbuffer.h'] = text['gtktextbuffer.h'].replace('G_END_DECLS', public + 'G_END_DECLS')
     text['gtktextbtreeprivate.h'] = text['gtktextbtreeprivate.h'].replace('G_END_DECLS', private + 'G_END_DECLS')
+    text['a11y/gtkatspicontext.c'] += '\n' + (here / 'a11y-splice.inc').read_text()
+    text['a11y/gtkatspicontextprivate.h'] = text['a11y/gtkatspicontextprivate.h'].replace(
+        'G_END_DECLS', 'gboolean gtk_at_spi_context_typomorph_ready (GtkAtSpiContext *self);\ngboolean gtk_at_spi_context_typomorph_publish (GtkAtSpiContext *self, guint offset,\n                                              const char *before, int before_bytes,\n                                              const char *after, int after_bytes);\n\nG_END_DECLS')
     for name, content in text.items():
         (source / 'gtk' / name).write_text(content)
     print('Pinned disposable GTK source patched; installed GTK unchanged.')

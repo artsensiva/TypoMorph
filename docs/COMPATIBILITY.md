@@ -11,6 +11,8 @@ Date: 2026-09-24. No combination below has been certified by this documentation 
 - **Deferred**: outside the first public release.
 - **TBD**: must be resolved before claiming the affected support.
 
+**Scope note (D-38, 2026-10-28):** this matrix is the first-public-release baseline. The Product Owner also approved Linux as the first beta target, with the six languages below plus Greek, Turkish, Polish, Portuguese, and Italian as input/layout languages; see section 3.1. That is a scope decision, not a certification.
+
 Language detection, a word list, a layout identifier, a successful build, and safe correction in a real application are different evidence levels. Only the last, with the required tests, supports a public compatibility claim.
 
 ## 2. Operating systems and hardware
@@ -41,7 +43,29 @@ Publish a finite list of tested versions. Do not promise every vendor-supported 
 | French | France traditional AZERTY, explicitly identified per OS | TBD; do not silently include all modern/alternative AZERTY variants |
 | Spanish | Spain and Latin American system layouts | TBD; map each OS's actual options rather than assuming identical names |
 
-Standard family names are product scope, not final technical mappings. For every variant record OS version, identifier, physical keyboard assumptions, modifiers, punctuation, diacritics, and test evidence before release.
+Linux mapping milestone (2026-10-01): `platform-linux::keymap` compiles system
+XKB rules `evdev`, model `pc105`, empty variant/options for `us`, `gb`, `ru`, `ua`,
+`de`, `fr` (traditional default AZERTY), `es`, and `latam`. Fixed-input tests on
+libxkbcommon 1.13.1 / xkb-data 2.46 exercise all 56 directed pairs at one physical
+position, selected regional letters/punctuation, Shift/Caps Lock/AltGr and refusal
+of dead keys, shortcuts, whitespace and unselected layouts. This is a bounded
+mapping foundation, not complete key coverage, dead-key composition, language
+accuracy or application correction evidence. Installed-layout identity and active
+OS options still need verification before integration; Windows/macOS IDs remain TBD.
+
+Standard family names are product scope, not final cross-platform mappings. For every variant record OS version, identifier, physical keyboard assumptions, modifiers, punctuation, diacritics, and test evidence before release.
+
+### 3.1 Linux beta additions (D-38)
+
+| Language | Required layout families | Exact IDs/evidence |
+| --- | --- | --- |
+| Greek | TBD | TBD; no Linux layout ID, variant, or mapping verified |
+| Turkish | TBD | TBD; Q and F variants not yet distinguished or chosen |
+| Polish | TBD | TBD; no Linux layout ID, variant, or mapping verified |
+| Portuguese | TBD | TBD; Portugal and Brazil not yet distinguished or chosen |
+| Italian | TBD | TBD; no Linux layout ID, variant, or mapping verified |
+
+These five are approved input/layout languages for the Linux beta only and are not UI-localization additions. Layout families, XKB IDs, variants, dead-key and AltGr behavior, and quality thresholds are undecided and must not be inferred from language names. The current Linux mapper covers only the eight IDs above, so none of these five has mapping, accuracy, or application evidence; they count as untested. The beta stays within the Ubuntu LTS GNOME scope in section 2, with no implied support for other distributions, desktop environments, or window systems, and the X11 session's exact version remains TBD. Windows and macOS remain longer-term targets.
 
 Excluded now: US International, Dvorak, Colemak, French Belgian/Canadian variants, Swiss German variants, phonetic/transliteration layouts, and arbitrary custom layouts.
 
@@ -91,11 +115,11 @@ IME correction is deferred. Active IME means suspension and buffer clearing. Saf
 
 Dead keys used by the approved alphabetic layouts are not an excuse to exclude those languages. Do not interfere with an unfinished sequence; consider the completed character only when safe.
 
-Next expansion priority: Greek, Turkish, Polish, and Portuguese. No additional language becomes mandatory merely because its dictionary is available. Later candidates include Italian, Czech, Bulgarian, Hebrew, and Arabic; IME-language support requires separate discovery and feasibility work.
+Former expansion priority: Greek, Turkish, Polish, and Portuguese. *Superseded in part, 2026-10-28 (D-38):* these four and Italian are now approved input/layout languages for the Linux beta (section 3.1); whether they become first-public-release requirements is undecided. No additional language becomes mandatory merely because its dictionary is available. Later candidates include Czech, Bulgarian, Hebrew, and Arabic; IME-language support requires separate discovery and feasibility work.
 
 ## 8. UI languages and release evidence record
 
-The UI is localized into the same six approved languages, independently of selected input layouts. Future input languages do not automatically expand the UI translation commitment.
+The UI is localized into the same six approved languages, independently of selected input layouts. Future input languages, including the five Linux-beta additions (D-38), do not automatically expand the UI translation commitment.
 
 Use the following evidence fields for every tested combination:
 

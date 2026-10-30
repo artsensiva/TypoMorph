@@ -1,0 +1,128 @@
+--- a/src/editor-typomorph-owner.c
++++ b/src/editor-typomorph-owner.c
+@@ -2,6 +2,7 @@
+  * Development-only fixed-input range experiment. Not a production adapter.
+  */
+ #include "config.h"
++#include <dlfcn.h>
+ #include <string.h>
+ #include "editor-typomorph-owner.h"
+ 
+@@ -423,6 +424,92 @@
+   owner_unref (self);
+ }
+ 
++typedef gboolean (*SpliceFn) (GtkTextBuffer *, guint, int, const char *, int, const char *, int);
++typedef guint (*RevisionFn) (GtkTextBuffer *);
++
++static void
++count_changed_cb (GtkTextBuffer *buffer, guint *count)
++{
++  (*count)++;
++}
++
++static void
++count_title_cb (GObject *object, GParamSpec *pspec, guint *count)
++{
++  (*count)++;
++}
++
++/* Subclass boundary experiment on the real EditorDocument (a GtkSourceBuffer).
++ * Fixed markers only. It reports the independent conditions the prototype's
++ * guards test, asks the prototype for one replacement and requires a refusal that
++ * leaves every observable unchanged, then makes one ordinary edit to show which
++ * default-handler side effects a storage-level splice would skip. It does not
++ * relax any guard and is not a correction. */
++static void
++subclass_boundary (EditorTypomorphOwner *self)
++{
++  GtkTextBuffer *buffer = GTK_TEXT_BUFFER (self->document);
++  SpliceFn splice = (SpliceFn) dlsym (RTLD_DEFAULT, "gtk_text_buffer_typomorph_splice");
++  RevisionFn revision_of = (RevisionFn) dlsym (RTLD_DEFAULT, "gtk_text_buffer_typomorph_revision");
++  guint insert_signal = g_signal_lookup ("insert-text", GTK_TYPE_TEXT_BUFFER);
++  guint delete_signal = g_signal_lookup ("delete-range", GTK_TYPE_TEXT_BUFFER);
++  guint changes = 0, titles = 0;
++  gulong changed_id, title_id;
++  GtkTextIter begin, end;
++
++  g_print ("typomorph-subclass: %s\n",
++           G_OBJECT_TYPE (buffer) != GTK_TYPE_TEXT_BUFFER && GTK_SOURCE_IS_BUFFER (buffer)
++             ? "TYPE_IS_SOURCE_BUFFER_SUBCLASS" : "TYPE_IS_NOT_SOURCE_BUFFER_SUBCLASS");
++  g_print ("typomorph-subclass: %s\n",
++           gtk_text_tag_table_get_size (gtk_text_buffer_get_tag_table (buffer)) != 0
++             ? "TAGS_PRESENT" : "TAGS_ABSENT");
++  g_print ("typomorph-subclass: %s\n",
++           g_signal_has_handler_pending (buffer, insert_signal, 0, TRUE) ||
++           g_signal_has_handler_pending (buffer, delete_signal, 0, TRUE)
++             ? "LEGACY_EDIT_HANDLERS_PRESENT" : "LEGACY_EDIT_HANDLERS_ABSENT");
++  if (splice == NULL || revision_of == NULL)
++    {
++      g_print ("typomorph-subclass: LIBRARY_API_ABSENT\n");
++      return;
++    }
++  {
++    guint revision = revision_of (buffer);
++    gboolean can_undo = gtk_text_buffer_get_can_undo (buffer);
++    gboolean can_redo = gtk_text_buffer_get_can_redo (buffer);
++    EditorDocument *identity = self->document;
++    gboolean accepted;
++    changed_id = g_signal_connect (buffer, "changed", G_CALLBACK (count_changed_cb), &changes);
++    title_id = g_signal_connect (identity, "notify::title", G_CALLBACK (count_title_cb), &titles);
++    accepted = splice (buffer, revision, 0, "ghbdtn", 6, "привет", 12);
++    if (accepted || !matches_synthetic (self, "ghbdtn") || revision_of (buffer) != revision ||
++        changes != 0 || titles != 0 || gtk_text_buffer_get_can_undo (buffer) != can_undo ||
++        gtk_text_buffer_get_can_redo (buffer) != can_redo ||
++        gtk_text_view_get_buffer (GTK_TEXT_VIEW (self->view)) != buffer ||
++        self->document != identity)
++      {
++        self->faulted = TRUE;
++        g_print ("typomorph-subclass: SPLICE_NOT_REFUSED_OR_STATE_CHANGED\n");
++      }
++    else
++      g_print ("typomorph-subclass: SPLICE_REFUSED_UNCHANGED\n");
++    g_signal_handler_disconnect (buffer, changed_id);
++    titles = 0;
++  }
++  /* Ordinary path: the subclass default handlers run and report a title change. */
++  gtk_text_buffer_begin_user_action (buffer);
++  gtk_text_buffer_get_bounds (buffer, &begin, &end);
++  gtk_text_buffer_delete (buffer, &begin, &end);
++  gtk_text_buffer_get_start_iter (buffer, &begin);
++  gtk_text_buffer_insert (buffer, &begin, "привет", -1);
++  gtk_text_buffer_end_user_action (buffer);
++  g_signal_handler_disconnect (self->document, title_id);
++  if (!matches_synthetic (self, "привет"))
++    g_print ("typomorph-check: CHECK_FAILED\n");
++  else
++    g_print ("typomorph-subclass: %s\n", titles > 0 ? "ORDINARY_EDIT_NOTIFIES_TITLE"
++                                                    : "ORDINARY_EDIT_DOES_NOT_NOTIFY_TITLE");
++}
++
+ /* Fixed private-runner driver. It waits for real synthetic key input; it never
+  * inserts the original word, changes focus, or exposes arbitrary control IPC. */
+ static gboolean
+@@ -456,6 +543,14 @@
+         }
+       if (!self->harness_ready || !fixed_original (self))
+         return G_SOURCE_CONTINUE;
++      if (g_strcmp0 (mode, "subclass-boundary") == 0)
++        {
++          self->harness_timer = 0;
++          subclass_boundary (self);
++          g_print ("typomorph-harness: FINISHED\n");
++          g_application_quit (application);
++          return G_SOURCE_REMOVE;
++        }
+       self->harness_phase = 1;
+       editor_typomorph_owner_probe (self, mode);
+       return G_SOURCE_CONTINUE;
+@@ -488,7 +583,8 @@
+     const char *mode = g_getenv ("TYPOMORPH_TEXT_EDITOR_CASE");
+     if (g_strcmp0 (mode, "normal") == 0 || g_strcmp0 (mode, "gap-edit") == 0 ||
+         g_strcmp0 (mode, "callback-begin-edit") == 0 ||
+-        g_strcmp0 (mode, "callback-delete-edit") == 0)
++        g_strcmp0 (mode, "callback-delete-edit") == 0 ||
++        g_strcmp0 (mode, "subclass-boundary") == 0)
+       {
+         self->refs++;
+         self->harness_deadline = g_get_monotonic_time () + 20 * G_TIME_SPAN_SECOND;

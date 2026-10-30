@@ -8,7 +8,7 @@ Do not use a documentation task as authorization to refactor, fix BUG-001, chang
 
 ## Development setup
 
-The current full workspace targets Linux. It uses Rust 2021, with `libdbus-1-dev` and `pkg-config` needed for the daemon's tray dependency. Live capture/replacement uses evdev/uinput; that path is not a portable platform abstraction.
+The current full workspace targets Linux. It uses Rust 2021, with `libdbus-1-dev` and `pkg-config` needed for the daemon's tray dependency. The Linux mapper also requires `libxkbcommon-dev` to build and `xkb-data` system definitions to run its tests. Live capture/replacement uses evdev/uinput; that path is not a portable platform abstraction.
 
 ```bash
 cargo build --workspace

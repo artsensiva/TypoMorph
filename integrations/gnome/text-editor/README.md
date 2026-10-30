@@ -1,3 +1,5 @@
+> Subclass boundary (2026-10-29): the GTK transaction is **not** applicable to the
+> real `EditorDocument`; see [Subclass boundary experiment](#subclass-boundary-experiment-2026-10-29).
 > Current status (2026-09-30): baseline and patched editors now compile and run.
 > Fixed replacement with ordinary undo/redo works; both post-deletion conflict
 > cases reproduce unsafe partial edits. See [native evidence](../../../docs/NATIVE_TEXT_EDITOR_RESULTS.md).
@@ -228,3 +230,104 @@ identify refusal stages. Both baseline and patched full builds pass with GCC;
 four real fixed cases ran and were repeated after removing temporary verbose
 notification diagnostics. The two partial-edit outcomes remain safety failures.
 See the linked evidence for versions, patch fingerprint and test limitations.
+
+## Subclass boundary experiment (2026-10-29)
+
+Question: can the GTK prototype's bounded replacement transaction be applied to
+the real `EditorDocument` (a `GtkSourceBuffer` subclass) while preserving
+callbacks, document identity, undo and refusal semantics? **Answer: no, not with
+the guarantees that exist today. The operation stays refusing.** This is a
+development fixture on a patched Text Editor 50.1 in a private compositor, with
+fixed synthetic text. It is not a correction, does not cover unmodified
+applications, and does not satisfy or define a Linux beta.
+
+### Method
+
+`0002-subclass-boundary-probe.patch` (applied after `0001`, whose SHA-256
+`84f533bc…` is unchanged; `0002` is `783c42e3…`) adds one case,
+`subclass-boundary`. After the runner types `ghbdtn`, the owner (1) reports the
+conditions that the prototype's guards test, (2) calls
+`gtk_text_buffer_typomorph_splice` on the real document and requires a refusal
+leaving text, revision, `changed` count, `notify::title` count, undo/redo
+availability, document identity and view binding unchanged, and (3) makes one
+ordinary edit to observe which default-handler side effects occur. It resolves the
+prototype API by `dlsym`, so no guard is relaxed and no GTK source was changed.
+The runner's new `--gtk-build` option sets `LD_LIBRARY_PATH` and the ASan runtime
+for the application process only; it is required for, and valid only with, this case.
+
+```sh
+python3 integrations/gnome/text-editor/verify_patch.py /path/to/gnome-text-editor-50.1
+python3 integrations/gnome/text-editor/run_native.py \
+  --binary BUILD/src/gnome-text-editor --schemas BUILD/data \
+  --case subclass-boundary --gtk-build /tmp/typomorph-gtk-transaction/build
+```
+
+### Observed on the real document (6 of 6 runs, exit 0)
+
+- `TYPE_IS_SOURCE_BUFFER_SUBCLASS`: the buffer is not the exact `GtkTextBuffer`
+  type the prototype requires.
+- `TAGS_PRESENT`: the tag table is not empty. The tags' source was not identified.
+- `LEGACY_EDIT_HANDLERS_PRESENT`: external `insert-text`/`delete-range` handlers
+  exist. GtkSourceView's completion, snippet and search code connect such handlers,
+  but which ones are attached here was not enumerated.
+- `SPLICE_REFUSED_UNCHANGED`: all observables listed above unchanged.
+
+**What this does and does not establish.** These conditions were all present in the
+same run and the splice was called once. The result shows *combined* refusal with
+no state change. It does not identify which guard refused, and it does not show that
+any one condition would refuse on its own. Reading `buffer-splice.inc` (not executed
+per condition) shows the type, tag and pending-handler checks are separate refusal
+conditions, so each is expected to refuse alone; that is an expectation from source,
+not an observation. A fourth condition was also present: the runner sets
+`GTK_A11Y=none`, so the attached view has no AT-SPI context, which the prototype
+also refuses on (observed separately for a plain buffer on Broadway). Isolating them
+needs controlled variants that change one condition at a time; none was run.
+- `ORDINARY_EDIT_NOTIFIES_TITLE`: an ordinary replacement notifies `title`.
+
+The expected markers are pinned to these observations; a changed fact fails the
+case so it is re-examined rather than silently accepted.
+
+### Why the transaction does not transfer (source trace, not all executed)
+
+The splice substitutes B-tree segments below GTK's default signal handlers and
+then emits `changed`. For a plain `GtkTextBuffer` the prototype migrated GTK's own
+observers (layouts, view accessibility) into explicit hooks. A subclass adds more
+default handlers in the chain `EditorDocument` → `GtkSourceBuffer` →
+`GtkTextBuffer`, and the splice does not run them:
+
+- `GtkSourceBuffer` insert/delete handlers (GtkSourceView 5.18.0
+  `gtksourcebuffer.c`) notify the highlight engine
+  (`_gtk_source_engine_text_inserted`/`_text_deleted`) and emit `cursor-moved`. Its
+  own comment says the engine's idea of the character count "must be correct at
+  all times". These calls are private to GtkSourceView; no public API delivers them.
+- `EditorDocument` (Text Editor 50.1 `editor-document.c`) sets `inserting`/
+  `deleting` flags that suppress `cursor-jumped`, and notifies `title` for edits in
+  the first 100 characters of an unsaved document. The last effect was observed.
+  Its `changed` override (autosave flag, statistics) would still run.
+- Other components attach to `insert-text`/`delete-range` and would not see the
+  edit, which is why the legacy-handler guard exists.
+
+Missing guarantee: a supported way for every layer of the subclass chain, and each
+external observer, to be told of one atomic replacement (old and new range) before
+or as part of the commit. That needs a hook in GTK (for example a
+replace-range virtual function or signal) plus implementations in
+GtkSourceView and the application, or an equivalent supported GtkSourceView API.
+No such hook exists in the pinned versions, and creating one is a design and
+upstream-coordination decision, not a local fix. The prototype also still refuses
+tags. The highlight-engine accounting was read from source, not demonstrated to
+corrupt; no guard was relaxed to try.
+
+### What this does not change
+
+The two post-deletion competing-callback cases remain **failing**: `gap-edit` and
+`callback-delete-edit` exit 2 (`KNOWN_UNSAFE`) on the rebuilt binary exactly as
+before, because the grouped delete/insert path they use still exposes
+intermediate state. The transaction would remove that state on a plain buffer, but
+it cannot be reached from the real document, so the editor's unsafe cases are not
+fixed. `normal` (fixed conversion plus ordinary undo/redo) and
+`callback-begin-edit` (pre-deletion refusal) still pass.
+
+Rebuilt binaries use GCC 15.2.0 against the system GTK 4.22.4, GtkSourceView
+5.18.0, libadwaita 1.9.1 and libspelling 0.4.9, with `itstool` extracted only
+under `/tmp`. The source is the official 50.1 release tarball (SHA-256
+`f68036b0…`); the five pinned input files match `upstream-files.sha256.json`.

@@ -14,9 +14,13 @@ Updated: 2026-10-01.
 > detection. An attached-view refusal probe passes behavioral checks; its
 > leak-enabled run reports font-stack allocations. Read
 > integrations/gnome/gtk-transaction/README.md for exact evidence and limits.
-> A cache-only layout draft was rejected: GtkTextLayout itself registers legacy
-> edit observers. Two additional layout refusal tests preserve this finding.
-> Next: compatible layout observers, GtkTextView accessibility notifications, and binding correction-record
+> GTK internal layout observers now use explicit maintenance hooks. Six layout
+> transaction tests and 20 upstream GTK buffer tests pass; external legacy handlers
+> still refuse. A separate Linux XKB mapper now has five fixed-input test groups,
+> with no live input integration. Four AT-SPI snapshot notification scenarios
+> pass against a private Wayland session and real registry; no view/storage wiring
+> yet. Next: connect GtkTextView snapshot publication to the storage transaction,
+> GtkSourceBuffer subclass semantics, and binding correction-record
 > cancellation to field/focus ownership. Retain the original failing real-editor
 > fixtures and production refusal gates. Do not capture personal typing, install
 > a toolkit fork, commit, push or publish without the required authorization.

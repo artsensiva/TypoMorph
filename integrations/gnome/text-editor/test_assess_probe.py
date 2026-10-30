@@ -28,6 +28,23 @@ class AssessmentTests(unittest.TestCase):
                       b'typomorph-probe: STALE\n' + self.NORMAL]:
             self.assertEqual(assess('normal', trace, 0), Outcome.FAILED)
 
+    SUBCLASS = (b'typomorph-subclass: TYPE_IS_SOURCE_BUFFER_SUBCLASS\ntypomorph-subclass: TAGS_PRESENT\n'
+                b'typomorph-subclass: LEGACY_EDIT_HANDLERS_PRESENT\ntypomorph-subclass: SPLICE_REFUSED_UNCHANGED\n'
+                b'typomorph-subclass: ORDINARY_EDIT_NOTIFIES_TITLE\n')
+
+    def test_subclass_boundary_requires_every_pinned_fact_and_a_refusal(self):
+        self.assertEqual(assess('subclass-boundary', self.SUBCLASS, 0), Outcome.OBSERVED)
+        # An accepted or state-changing splice, an absent library API and a changed
+        # guard fact must each fail, never be reported as an observation.
+        for old, new in [(b'SPLICE_REFUSED_UNCHANGED', b'SPLICE_NOT_REFUSED_OR_STATE_CHANGED'),
+                         (b'TAGS_PRESENT', b'TAGS_ABSENT'),
+                         (b'LEGACY_EDIT_HANDLERS_PRESENT', b'LEGACY_EDIT_HANDLERS_ABSENT'),
+                         (b'SPLICE_REFUSED_UNCHANGED', b'LIBRARY_API_ABSENT')]:
+            self.assertEqual(assess('subclass-boundary', self.SUBCLASS.replace(old, new), 0), Outcome.FAILED)
+        self.assertEqual(assess('subclass-boundary', self.SUBCLASS, 1), Outcome.FAILED)
+        self.assertEqual(assess('subclass-boundary', self.SUBCLASS.replace(
+            b'typomorph-subclass: TAGS_PRESENT\n', b''), 0), Outcome.FAILED)
+
     def test_oversize_invalid_encoding_and_unknown_case_fail(self):
         for case, trace in [('normal', b'x' * (MAX_OUTPUT_BYTES + 1)),
                             ('normal', self.NORMAL + b'\xff'), ('other', self.NORMAL)]:
